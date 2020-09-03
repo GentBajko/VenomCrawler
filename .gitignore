@@ -1,0 +1,14 @@
+/www.yelp.com.csv
+/yelp data.csv
+/venv/
+/www.yelp.com/
+/Venom.git/
+.idea/.gitignore
+.idea/misc.xml
+.idea/modules.xml
+.idea/other.xml
+.idea/vcs.xml
+.idea/Venom.iml
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/inspectionProfiles/Project_Default.xml
+CityList.csv
