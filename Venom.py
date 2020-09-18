@@ -16,12 +16,13 @@ from utils.utils import get_selectors, concat_keys_values
 
 class Venom:
     # TODO: Load More and Infinite Scroll
-    def __init__(self, starting_url: str, column_names: list, xpaths: list, url_queries: dict,
-                 error_xpaths: list, product_xpath: str = None, regex: dict = None):
+    def __init__(self, starting_url: str, column_names: list, xpaths: list, error_xpaths: list,
+                 url_queries: dict = None, product_xpath: str = None, regex: dict = None):
         self.starting_url = starting_url
-        url_queries = (''.join(chain.from_iterable(e)) for e in
-                       product(*map(concat_keys_values, url_queries.items())))
-        self.urls = (''.join(url).replace(' ', '%20') for url in product([starting_url], url_queries))
+        if url_queries:
+            url_queries = (''.join(chain.from_iterable(e)) for e in
+                           product(*map(concat_keys_values, url_queries.items())))
+            self.urls = (''.join(url).replace(' ', '%20') for url in product([starting_url], url_queries))
         options = Options()
         options.headless = True
         self.driver = webdriver.Chrome(os.path.join(os.environ['CHROMEDRIVER']), options=options)
@@ -34,6 +35,14 @@ class Venom:
         self.final_urls = {'source_url': [], 'page_url': [], 'product_url': []}
         self.start_time = datetime.now()
         print(f"Initialized: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+    def check_split(self):
+        if len(sys.argv) > 1:
+            chunks = int(sys.argv[1])
+            piece = int(sys.argv[2])
+            urls = [url for url in self.urls]
+            return np.array_split(urls, chunks)[piece]
+        return [url for url in self.urls]
 
     def error(self):
         for err in self.error_xpaths:
@@ -62,12 +71,7 @@ class Venom:
                 self.data[name].append(np.NaN)
 
     def pagination(self, next_xpath: str):
-        if len(sys.argv) > 1:
-            chunks = int(sys.argv[1])
-            piece = int(sys.argv[2])
-            urls = np.array_split(list(self.urls), chunks)[piece]
-        else:
-            urls = self.urls
+        urls = self.check_split()
         for url in urls:
             self.driver.get(url)
             if not self.error():
@@ -83,13 +87,7 @@ class Venom:
 
     def calculate_urls(self, page_query: str, page_steps: int, last_page_xpath: str,
                        save_file: bool = True):
-        if len(sys.argv) > 1:
-            chunks = int(sys.argv[1])
-            piece = int(sys.argv[2])
-            urls = [url for url in self.urls]
-            urls = np.array_split(urls, chunks)[piece]
-        else:
-            urls = [url for url in self.urls]
+        urls = self.check_split()
         counter = len(urls)
         for url in urls:
             start = perf_counter()
@@ -135,7 +133,25 @@ class Venom:
             raise AttributeError
         return self
 
-    def scrape(self, predefined_url_list: list = None):
+    def search(self, search_xpath, search_terms):
+        urls = self.check_split()
+        counter = len(urls)
+        self.driver.get(*self.urls)
+        search = self.driver.find_element_by_xpath(search_xpath)
+        for term in search_terms:
+            start = perf_counter()
+            complete = len(search_terms) - counter
+            sys.stdout.flush()
+            search.send_keys(term)
+            if not self.error():
+                url = self.driver.current_url
+                self.pages.append(url)
+                counter -= 1
+                sys.stdout.write(f'\r{complete} out of {counter + complete} URLs have been scraped. {counter} left. '
+                                 f'{(perf_counter() - start):0.2f}')
+        return self
+
+    def scrape(self, predefined_url_list: list = None, load_more: str = None):
         if len(sys.argv) > 1:
             if predefined_url_list:
                 urls = np.array_split(predefined_url_list, int(sys.argv[1]))[int(sys.argv[2])]
@@ -153,6 +169,11 @@ class Venom:
             start = perf_counter()
             complete = len(list(urls)) - counter
             sys.stdout.flush()
+            if load_more:
+                load = self.driver.find_element_by_xpath(load_more)
+                while load:
+                    load.click()
+                    # TODO: Check if sleep is needed
             self.driver.get(url)
             if not self.error():
                 for column, selector in self.selectors.items():
