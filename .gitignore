@@ -13,3 +13,4 @@
 .idea/inspectionProfiles/Project_Default.xml
 CityList.csv
 .idea
+!/utils/

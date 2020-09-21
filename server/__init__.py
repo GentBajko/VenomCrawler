@@ -1,34 +1,57 @@
-from quart import Quart, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify
 from Venom import Venom
 import json
-import sys
+import os
+from flask_sqlalchemy import SQLAlchemy
 
-app = Quart(__name__, template_folder='build')
+app = Flask(__name__, template_folder='build')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['VENOM_DB']
+db = SQLAlchemy(app)
+
+
+class Users(db.Model):
+
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True)
+    email = db.Column(db.String(120), unique=True)
+    password = db.Column(db.String(20))
+
+    def __init__(self, user_id, username, email, password):
+        self.user_id = user_id
+        self.username = username
+        self.email = email
+        self.password = password
+
+    def __repr__(self):
+        return f'<ID={self.user_id}, <User={self.username}, <Email={self.email}, <Password={self.password}>'
+
+
+db.create_all()
 
 
 @app.route('/')
-async def index():
-    return await render_template('index.html')
+def index():
+    return render_template('index.html')
 
 
 @app.route('/login')
-async def login():
+def login():
     pass
 
 
 @app.route('/register')
-async def register():
+def register():
     pass
 
 
 @app.route('/profile')
-async def profile():
+def profile():
     pass
 
 
 @app.route('/create', methods=['POST'])
-async def create():
-    response = await request.data
+def create():
+    response = request.data
     print(response)
     response = json.loads(response.decode('utf8').replace("'", '"'))
     # Class Attributes
@@ -54,4 +77,4 @@ async def create():
 
 
 if __name__ == '__main__':
-    app.run(host='127.0.0.1', port=8000, debug=True)
+    app.run(host='127.0.0.1', port=5050, debug=True)
