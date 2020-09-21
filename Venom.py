@@ -16,7 +16,8 @@ from utils.utils import get_selectors, concat_keys_values
 
 class Venom:
     # TODO: Load More and Infinite Scroll
-    def __init__(self, starting_url: str, column_names: list, xpaths: list, error_xpaths: list,
+    # TODO: Make error checks optional
+    def __init__(self, starting_url: str, column_names: list, xpaths: list, error_xpaths: list = None,
                  url_queries: dict = None, product_xpath: str = None, regex: dict = None):
         self.starting_url = starting_url
         if url_queries:
@@ -45,12 +46,13 @@ class Venom:
         return [url for url in self.urls]
 
     def error(self):
-        for err in self.error_xpaths:
-            try:
-                if self.driver.find_element_by_xpath(err):
-                    return True
-            except (NoSuchElementException, UnexpectedAlertPresentException):
-                continue
+        if self.error_xpaths:
+            for err in self.error_xpaths:
+                try:
+                    if self.driver.find_element_by_xpath(err):
+                        return True
+                except (NoSuchElementException, UnexpectedAlertPresentException):
+                    continue
 
     def tryexcept(self, name, xpath):
         if self.regex:
@@ -160,10 +162,7 @@ class Venom:
                 piece = int(sys.argv[2])
                 urls = np.array_split(self.final_urls, chunks)[piece]
         else:
-            if predefined_url_list:
-                urls = predefined_url_list
-            else:
-                urls = self.final_urls
+            urls = predefined_url_list if predefined_url_list else self.final_urls
         counter = len(list(urls))
         for url in urls:
             start = perf_counter()
