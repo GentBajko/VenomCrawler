@@ -1,18 +1,25 @@
-class Test:
-
-    def __init__(self, num):
-        self.num = num
-
-    def get(self):
-        print(self.num)
-
-
+import pickle
 from multiprocessing import Pool
 
 
-def placeholder(num):
-    Test(num).get()
+class Test:
+
+    def __init__(self, num, test):
+        self.num = num
+        self.test = test
+
+    def get(self):
+        return self.num + self.test
 
 
-pool = Pool(processes=10)
-pool.map(placeholder, [x for x in range(10)])
+def placeholder(*args):
+    Test(args).get()
+
+
+# pool = Pool(processes=10)
+# pool.map(placeholder, [x for x in range(10)])
+
+a = {'num': "O", 'test': 'Hi'}
+
+# placeholder(*a.values())
+eval(Test(*a.values()).get())
