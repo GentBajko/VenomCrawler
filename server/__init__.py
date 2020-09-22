@@ -1,9 +1,6 @@
 from flask import Flask, render_template, request, jsonify
-from Venom import Venom
 import json
-import os
 import utils.mongo as mongo
-from multiprocessing import Pool
 
 app = Flask(__name__, template_folder='build')
 
