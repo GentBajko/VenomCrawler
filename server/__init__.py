@@ -2,69 +2,10 @@ from flask import Flask, render_template, request, jsonify
 from Venom import Venom
 import json
 import os
-from flask_sqlalchemy import SQLAlchemy
+import utils.mongo as mongo
 from multiprocessing import Pool
 
 app = Flask(__name__, template_folder='build')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['VENOM_DB']
-db = SQLAlchemy(app)
-
-
-class Users(db.Model):
-
-    user_id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True)
-    email = db.Column(db.String(120), unique=True)
-    password = db.Column(db.String(20))
-
-    def __init__(self, user_id, username, email, password):
-        self.user_id = user_id
-        self.username = username
-        self.email = email
-        self.password = password
-
-    def __repr__(self):
-        return f'<ID={self.user_id}, <User={self.username}, <Email={self.email}, <Password={self.password}>'
-
-
-class Crawlers(db.Model):
-
-    user_id = db.Column(db.ARRAY)
-    username = db.Column(db.Integer)
-    starting_url = db.Column(db.Integer)
-    column_names = db.Column(db.Integer)
-    xpaths = db.Column(db.Integer)
-    error_xpaths = db.Column(db.String)
-    url_queries = db.Column(db.Integer)
-    product_xpath = db.Column(db.Integer)
-    regex = db.Column(db.Integer)
-    splits = db.Column(db.Integer)
-    chunks = db.Column(db.Integer)
-    page_query = db.Column(db.Integer)
-    page_steps = db.Column(db.Integer)
-    search_xpath = db.Column(db.Integer)
-    search_terms = db.Column(db.Integer)
-
-    def __init__(self, user_id, username, starting_url, column_names, xpaths, error_xpaths, url_queries,
-                 product_xpath, regex, splits, chunks, page_query, page_steps, search_xpath, search_terms):
-        self.user_id = user_id
-        self.username = username
-        self.starting_url = starting_url
-        self.column_names = column_names
-        self.xpaths = xpaths
-        self.error_xpaths = error_xpaths
-        self.url_queries = url_queries
-        self.product_xpath = product_xpath
-        self.regex = regex
-        self.splits = splits
-        self.chunks = chunks
-        self.page_query = page_query
-        self.page_steps = page_steps
-        self.search_xpath = search_xpath
-        self.search_terms = search_terms
-
-    def __repr__(self):
-        return f'<ID={self.user_id}, <User={self.username}, <Email={self.email}, <Password={self.password}>'
 
 
 @app.route('/')
@@ -79,7 +20,9 @@ def login():
 
 @app.route('/register')
 def register():
-    pass
+    resp = request.data
+    response = json.loads(resp.decode('utf8').replace("'", '"'))
+    mongo.insert_mongo(mongo.users, response)
 
 
 @app.route('/profile')
