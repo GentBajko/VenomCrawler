@@ -16,21 +16,6 @@ if __name__ == '__main__':
     pool = Pool(processes=splits)
     pool.map(run_process, processes)
 
-
-# import pickle
-# from multiprocessing import Pool
-#
-#
-# class Test:
-#
-#     def __init__(self, num, test):
-#         self.num = num
-#         self.test = test
-#
-#     def get(self):
-#         return self.num + self.test
-#
-#
 # def placeholder(*args):
 #     Test(args).get()
 #

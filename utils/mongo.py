@@ -38,9 +38,5 @@ def replace_mongo(collection: pymongo.collection.Collection,
     collection.replace_one({"_id": user_id}, post)
 
 
-def search_mongo(collection: pymongo.collection.Collection, **kwargs):
-    return collection.find(kwargs)
-
-
 if __name__ == '__main__':
     pass
