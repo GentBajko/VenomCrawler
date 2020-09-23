@@ -41,3 +41,7 @@ def replace_mongo(collection: pymongo.collection.Collection,
 
 def search_mongo(collection: pymongo.collection.Collection, **kwargs):
     return collection.find(kwargs)
+
+
+if __name__ == '__main__':
+    pass

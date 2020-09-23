@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, jsonify
 import json
 import utils.mongo as mongo
 
-app = Flask(__name__, template_folder='build')
+app = Flask(__name__)
 
 
 @app.route('/')
