@@ -1,6 +1,5 @@
 import os
 import pymongo
-import hashlib
 from datetime import datetime
 
 cluster = pymongo.MongoClient(os.environ['VENOM_MONGO'])
