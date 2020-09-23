@@ -55,5 +55,3 @@ def create():
             }
     mdb.insert_mongo(mdb.crawlers, post)
     return jsonify({'ok': True})
-
-
