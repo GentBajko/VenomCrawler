@@ -11,12 +11,13 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
 
-from utils.utils import get_selectors, concat_keys_values, join_files
+from utils import get_selectors, concat_keys_values, join_files
 
 
 class Venom:
     # TODO: Load More and Infinite Scroll
     # TODO: Make error checks optional
+    # TODO: New version won't work with self.urls on length 1. You must find de way
     def __init__(self, starting_url: str, column_names: list, xpaths: list, error_xpaths: list = None,
                  url_queries: dict = None, product_xpath: str = None, regex: dict = None,
                  chunksize: int = None, chunk: int = None):
@@ -40,8 +41,9 @@ class Venom:
         self.chunksize = chunksize
         self.chunk = chunk
         if not chunksize and len(sys.argv) > 1:
-            self.chunksize = sys.argv[1]
-            self.chunk = sys.argv[2]
+            self.chunksize = int(sys.argv[1])
+            self.chunk = int(sys.argv[2])
+            print(self.chunksize, self.chunk)
         self.start_time = datetime.now()
         print(f"Initialized: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 

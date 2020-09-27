@@ -42,4 +42,4 @@ def join_files(site) -> None:
 
 
 if __name__ == "__main__":
-    len(s)
+    pass
