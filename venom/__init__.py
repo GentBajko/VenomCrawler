@@ -19,7 +19,7 @@ class Venom:
     # TODO: Make error checks optional
     def __init__(self, starting_url: str, column_names: list, xpaths: list, error_xpaths: list = None,
                  url_queries: dict = None, product_xpath: str = None, regex: dict = None,
-                 splits: int = None, piece: int = None):
+                 chunksize: int = None, chunk: int = None):
         self.starting_url = starting_url
         if url_queries:
             url_queries = (''.join(chain.from_iterable(e)) for e in
@@ -37,15 +37,18 @@ class Venom:
         self.pages = []
         self.data = {k: [] for k, _ in self.selectors.items()}
         self.final_urls = {'source_url': [], 'page_url': [], 'product_url': []}
-        self.splits = splits
-        self.piece = piece
+        self.chunksize = chunksize
+        self.chunk = chunk
+        if not chunksize and len(sys.argv) > 1:
+            self.chunksize = sys.argv[1]
+            self.chunk = sys.argv[2]
         self.start_time = datetime.now()
         print(f"Initialized: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     def check_split(self):
-        if self.splits:
+        if self.chunksize:
             urls = [url for url in self.urls]
-            return np.array_split(urls, self.splits)[self.piece]
+            return np.array_split(urls, self.chunksize)[self.chunk]
         return [url for url in self.urls]
 
     def error(self):
@@ -115,12 +118,12 @@ class Venom:
             website = self.starting_url.split("/")[2]
             if website not in os.listdir(os.getcwd()):
                 os.mkdir(website)
-            if self.splits:
-                if self.splits == self.piece:
-                    pd.DataFrame(self.data).to_csv(f'{website}/{website} pages {self.piece}.csv', encoding='utf-8-sig')
+            if self.chunksize:
+                if self.chunksize == self.chunk:
+                    pd.DataFrame(self.data).to_csv(f'{website}/{website} pages {self.chunk}.csv', encoding='utf-8-sig')
                     join_files(website)
                 else:
-                    series.to_csv(f'{website}/{website} pages {self.piece}.csv', encoding='utf-8-sig')
+                    series.to_csv(f'{website}/{website} pages {self.chunk}.csv', encoding='utf-8-sig')
             else:
                 series.to_csv(f'{website}/{website} pages.csv', encoding='utf-8-sig')
         return self
@@ -130,7 +133,7 @@ class Venom:
             counter = len(list(self.pages))
             for source in self.pages:
                 start = perf_counter()
-                complete = len(list(self.urls)) - counter
+                complete = len(self.pages) - counter
                 self.driver.get(source)
                 urls = self.driver.find_elements_by_xpath(self.product_xpath)
                 products = (url.text for url in urls)
@@ -164,11 +167,11 @@ class Venom:
 
     def scrape(self, predefined_url_list: list = None, load_more: str = None):
         if len(list(self.urls)) > 1:
-            if self.splits:
+            if self.chunksize:
                 if predefined_url_list:
-                    urls = np.array_split(predefined_url_list, self.splits)[self.piece]
+                    urls = np.array_split(predefined_url_list, self.chunksize)[self.chunk]
                 else:
-                    urls = np.array_split(self.final_urls, self.splits)[self.piece]
+                    urls = np.array_split(self.final_urls, self.chunksize)[self.chunk]
             else:
                 urls = predefined_url_list if predefined_url_list else self.final_urls
         else:
@@ -194,12 +197,12 @@ class Venom:
         website = self.starting_url.split("/")[2]
         if website not in os.listdir(os.getcwd()):
             os.mkdir(website)
-        if self.splits:
-            if self.splits == self.piece:
-                pd.DataFrame(self.data).to_csv(f'{website}/{website} {self.piece}.csv', encoding='utf-8-sig')
+        if self.chunksize:
+            if self.chunksize == self.chunk:
+                pd.DataFrame(self.data).to_csv(f'{website}/{website} {self.chunk}.csv', encoding='utf-8-sig')
                 join_files(website)
             else:
-                pd.DataFrame(self.data).to_csv(f'{website}/{website} {self.piece}.csv', encoding='utf-8-sig')
+                pd.DataFrame(self.data).to_csv(f'{website}/{website} {self.chunk}.csv', encoding='utf-8-sig')
         else:
             date = datetime.now().strftime('%Y-%m-%d')
             pd.DataFrame(self.data).to_csv(f'{website}/{website} {date}.csv', encoding='utf-8-sig')

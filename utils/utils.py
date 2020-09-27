@@ -15,18 +15,18 @@ def timer(func):
     return wrapper
 
 
-def get_selectors(columns: list, xpaths: list) -> dict:
+def get_selectors(columns: list, xpaths: list):
     if len(columns) == len(xpaths):
         return {k: v for k, v in zip(columns, xpaths)}
     raise AttributeError
 
 
-def concat_keys_values(tupl) -> iter():
+def concat_keys_values(tupl):
     k, values = tupl
     return (k + v for v in values)
 
 
-def split_urls(urls_list, batch_size) -> iter():
+def split_urls(urls_list, batch_size):
     for i in np.arange(0, len(list(urls_list)), batch_size):
         yield list(urls_list)[i:i + batch_size]
 
@@ -42,4 +42,4 @@ def join_files(site) -> None:
 
 
 if __name__ == "__main__":
-    pass
+    len(s)
