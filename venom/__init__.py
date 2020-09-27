@@ -11,19 +11,22 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
 
-from utils.utils import get_selectors, concat_keys_values
+from utils.utils import get_selectors, concat_keys_values, join_files
 
 
 class Venom:
     # TODO: Load More and Infinite Scroll
     # TODO: Make error checks optional
     def __init__(self, starting_url: str, column_names: list, xpaths: list, error_xpaths: list = None,
-                 url_queries: dict = None, product_xpath: str = None, regex: dict = None):
+                 url_queries: dict = None, product_xpath: str = None, regex: dict = None,
+                 splits: int = None, piece: int = None):
         self.starting_url = starting_url
         if url_queries:
             url_queries = (''.join(chain.from_iterable(e)) for e in
                            product(*map(concat_keys_values, url_queries.items())))
             self.urls = (''.join(url).replace(' ', '%20') for url in product([starting_url], url_queries))
+        else:
+            self.urls = [starting_url]
         options = Options()
         options.headless = True
         self.driver = webdriver.Chrome(os.path.join(os.environ['CHROMEDRIVER']), options=options)
@@ -34,15 +37,15 @@ class Venom:
         self.pages = []
         self.data = {k: [] for k, _ in self.selectors.items()}
         self.final_urls = {'source_url': [], 'page_url': [], 'product_url': []}
+        self.splits = splits
+        self.piece = piece
         self.start_time = datetime.now()
         print(f"Initialized: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     def check_split(self):
-        if len(sys.argv) > 1:
-            chunks = int(sys.argv[1])
-            piece = int(sys.argv[2])
+        if self.splits:
             urls = [url for url in self.urls]
-            return np.array_split(urls, chunks)[piece]
+            return np.array_split(urls, self.splits)[self.piece]
         return [url for url in self.urls]
 
     def error(self):
@@ -88,7 +91,7 @@ class Venom:
         return self
 
     def calculate_urls(self, page_query: str, page_steps: int, last_page_xpath: str,
-                       save_file: bool = True):
+                       last_page_arrow: str = None, save_file: bool = True):
         urls = self.check_split()
         counter = len(urls)
         for url in urls:
@@ -96,6 +99,8 @@ class Venom:
             complete = len(urls) - counter
             self.driver.get(url)
             if not self.error():
+                if last_page_arrow:
+                    self.driver.find_element_by_xpath(last_page_arrow).click()
                 last_page = self.driver.find_element_by_xpath(last_page_xpath).text
                 last_page = re.search(r'\d+$', last_page).group()
                 page_range = [str(i) for i in range(0, int(last_page) * page_steps, page_steps)]
@@ -110,8 +115,12 @@ class Venom:
             website = self.starting_url.split("/")[2]
             if website not in os.listdir(os.getcwd()):
                 os.mkdir(website)
-            if len(sys.argv) > 1:
-                series.to_csv(f'{website}/{website} pages {sys.argv[2]}.csv', encoding='utf-8-sig')
+            if self.splits:
+                if self.splits == self.piece:
+                    pd.DataFrame(self.data).to_csv(f'{website}/{website} pages {self.piece}.csv', encoding='utf-8-sig')
+                    join_files(website)
+                else:
+                    series.to_csv(f'{website}/{website} pages {self.piece}.csv', encoding='utf-8-sig')
             else:
                 series.to_csv(f'{website}/{website} pages.csv', encoding='utf-8-sig')
         return self
@@ -154,15 +163,16 @@ class Venom:
         return self
 
     def scrape(self, predefined_url_list: list = None, load_more: str = None):
-        if len(sys.argv) > 1:
-            if predefined_url_list:
-                urls = np.array_split(predefined_url_list, int(sys.argv[1]))[int(sys.argv[2])]
+        if len(list(self.urls)) > 1:
+            if self.splits:
+                if predefined_url_list:
+                    urls = np.array_split(predefined_url_list, self.splits)[self.piece]
+                else:
+                    urls = np.array_split(self.final_urls, self.splits)[self.piece]
             else:
-                chunks = int(sys.argv[1])
-                piece = int(sys.argv[2])
-                urls = np.array_split(self.final_urls, chunks)[piece]
+                urls = predefined_url_list if predefined_url_list else self.final_urls
         else:
-            urls = predefined_url_list if predefined_url_list else self.final_urls
+            urls = self.pages
         counter = len(list(urls))
         for url in urls:
             start = perf_counter()
@@ -184,7 +194,14 @@ class Venom:
         website = self.starting_url.split("/")[2]
         if website not in os.listdir(os.getcwd()):
             os.mkdir(website)
-        pd.DataFrame(self.data).to_csv(f'{website}/{website} {sys.argv[2]}.csv', encoding='utf-8-sig')
-        print(f"Finished: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        if self.splits:
+            if self.splits == self.piece:
+                pd.DataFrame(self.data).to_csv(f'{website}/{website} {self.piece}.csv', encoding='utf-8-sig')
+                join_files(website)
+            else:
+                pd.DataFrame(self.data).to_csv(f'{website}/{website} {self.piece}.csv', encoding='utf-8-sig')
+        else:
+            date = datetime.now().strftime('%Y-%m-%d')
+            pd.DataFrame(self.data).to_csv(f'{website}/{website} {date}.csv', encoding='utf-8-sig')
+        print(f"\n\nFinished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         return self
-
