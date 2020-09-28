@@ -12,40 +12,55 @@ from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
 
 from utils import get_selectors, concat_keys_values, join_files
+import dill
 
 
 class Venom:
-    # TODO: Load More and Infinite Scroll
-    # TODO: Make error checks optional
-    # TODO: New version won't work with self.urls on length 1. You must find de way
-    def __init__(self, starting_url: str, column_names: list, xpaths: list, error_xpaths: list = None,
-                 url_queries: dict = None, product_xpath: str = None, regex: dict = None,
-                 chunksize: int = None, chunk: int = None):
-        self.starting_url = starting_url
-        if url_queries:
+    starting_url: str
+    column_names: list
+    xpaths: list
+    error_xpaths: list = None
+    url_queries: dict = None
+    product_xpath: str = None
+    regex: dict = None
+    next_xpath: str
+    chunksize: int = None
+    page_query: str
+    page_steps: int
+    last_page_xpath: str
+    last_page_arrow: str = None
+    save_file: bool = True
+    search_xpath: str = None
+    search_terms: str = None
+    predefined_url_list: list = None
+    load_more: str = None
+
+    def __init__(self, name: str, chunk: int = None):
+        self.name = name
+        if self.url_queries:
             url_queries = (''.join(chain.from_iterable(e)) for e in
-                           product(*map(concat_keys_values, url_queries.items())))
-            self.urls = (''.join(url).replace(' ', '%20') for url in product([starting_url], url_queries))
+                           product(*map(concat_keys_values, self.url_queries.items())))
+            self.urls = (''.join(url).replace(' ', '%20') for url in product([self.starting_url], url_queries))
         else:
-            self.urls = [starting_url]
-        options = Options()
-        options.headless = True
-        self.driver = webdriver.Chrome(os.path.join(os.environ['CHROMEDRIVER']), options=options)
-        self.selectors = get_selectors(column_names, xpaths)
-        self.error_xpaths = error_xpaths
-        self.product_xpath = product_xpath
-        self.regex = regex
+            self.urls = [self.starting_url]
+        self.driver = None
+        self.selectors = get_selectors(self.column_names, self.xpaths)
         self.pages = []
         self.data = {k: [] for k, _ in self.selectors.items()}
         self.final_urls = {'source_url': [], 'page_url': [], 'product_url': []}
-        self.chunksize = chunksize
         self.chunk = chunk
-        if not chunksize and len(sys.argv) > 1:
+        if not self.chunksize and len(sys.argv) > 1:
             self.chunksize = int(sys.argv[1])
             self.chunk = int(sys.argv[2])
             print(self.chunksize, self.chunk)
         self.start_time = datetime.now()
         print(f"Initialized: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+    def init_driver(self, hidden=True):
+        options = Options()
+        options.headless = hidden
+        self.driver = webdriver.Chrome(os.path.join(os.environ['CHROMEDRIVER']), options=options)
+        return self
 
     def check_split(self):
         if self.chunksize:
@@ -80,7 +95,7 @@ class Venom:
             except (NoSuchElementException, UnexpectedAlertPresentException):
                 self.data[name].append(np.NaN)
 
-    def pagination(self, next_xpath: str):
+    def pagination(self):
         urls = self.check_split()
         for url in urls:
             self.driver.get(url)
@@ -89,14 +104,13 @@ class Venom:
             while True:
                 self.pages[url].append(self.driver.current_url)
                 try:
-                    next_page = self.driver.find_element_by_xpath(next_xpath)
+                    next_page = self.driver.find_element_by_xpath(self.next_xpath)
                     next_page.click()
                 except (NoSuchElementException, UnexpectedAlertPresentException):
                     break
         return self
 
-    def calculate_urls(self, page_query: str, page_steps: int, last_page_xpath: str,
-                       last_page_arrow: str = None, save_file: bool = True):
+    def calculate_urls(self):
         urls = self.check_split()
         counter = len(urls)
         for url in urls:
@@ -104,18 +118,19 @@ class Venom:
             complete = len(urls) - counter
             self.driver.get(url)
             if not self.error():
-                if last_page_arrow:
-                    self.driver.find_element_by_xpath(last_page_arrow).click()
-                last_page = self.driver.find_element_by_xpath(last_page_xpath).text
+                if self.last_page_arrow:
+                    self.driver.find_element_by_xpath(self.last_page_arrow).click()
+                last_page = self.driver.find_element_by_xpath(self.last_page_xpath).text
                 last_page = re.search(r'\d+$', last_page).group()
-                page_range = [str(i) for i in range(0, int(last_page) * page_steps, page_steps)]
-                tuples = product([url], [page_query], page_range)
+                page_range = [str(i) for i in
+                              range(0, int(last_page) * self.page_steps, self.page_steps)]
+                tuples = product([url], [self.page_query], page_range)
                 new_urls = [''.join(link) for link in tuples]
                 [self.pages.append(link) for link in new_urls]
                 counter -= 1
                 sys.stdout.write(f'\r{complete} out of {counter + complete} URLs have been scraped. {counter} left. '
                                  f'{(perf_counter() - start):0.2f}')
-        if save_file:
+        if self.save_file:
             series = pd.Series(self.pages)
             website = self.starting_url.split("/")[2]
             if website not in os.listdir(os.getcwd()):
@@ -149,14 +164,14 @@ class Venom:
             raise AttributeError
         return self
 
-    def search(self, search_xpath, search_terms):
+    def search(self):
         urls = self.check_split()
         counter = len(urls)
         self.driver.get(*self.urls)
-        search = self.driver.find_element_by_xpath(search_xpath)
-        for term in search_terms:
+        search = self.driver.find_element_by_xpath(self.search_xpath)
+        for term in self.search_terms:
             start = perf_counter()
-            complete = len(search_terms) - counter
+            complete = len(self.search_terms) - counter
             sys.stdout.flush()
             search.send_keys(term)
             if not self.error():
@@ -167,15 +182,15 @@ class Venom:
                                  f'{(perf_counter() - start):0.2f}')
         return self
 
-    def scrape(self, predefined_url_list: list = None, load_more: str = None):
+    def scrape(self):
         if len(list(self.urls)) > 1:
             if self.chunksize:
-                if predefined_url_list:
-                    urls = np.array_split(predefined_url_list, self.chunksize)[self.chunk]
+                if self.predefined_url_list:
+                    urls = np.array_split(self.predefined_url_list, self.chunksize)[self.chunk]
                 else:
                     urls = np.array_split(self.final_urls, self.chunksize)[self.chunk]
             else:
-                urls = predefined_url_list if predefined_url_list else self.final_urls
+                urls = self.predefined_url_list if self.predefined_url_list else self.final_urls
         else:
             urls = self.pages
         counter = len(list(urls))
@@ -183,8 +198,8 @@ class Venom:
             start = perf_counter()
             complete = len(list(urls)) - counter
             sys.stdout.flush()
-            if load_more:
-                load = self.driver.find_element_by_xpath(load_more)
+            if self.load_more:
+                load = self.driver.find_element_by_xpath(self.load_more)
                 while load:
                     load.click()
                     # TODO: Check if sleep is needed
@@ -210,3 +225,7 @@ class Venom:
             pd.DataFrame(self.data).to_csv(f'{website}/{website} {date}.csv', encoding='utf-8-sig')
         print(f"\n\nFinished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         return self
+
+    def serialize(self):
+        with open(f"{self.name}.pkl", 'wb') as f:
+            dill.dump(self, f)

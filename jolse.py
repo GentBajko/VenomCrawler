@@ -1,20 +1,23 @@
-from venom import Venom
 from multiprocessing import Pool
+from utils.jobs import jobs
+from venom import Venom
+import dill
 
-cols = ['Brand', 'Product', 'Price', 'Discounted Price']
-xpath = ['//tr[@class="prd_brand_css  xans-record-"]//td/span[2]',
-         '//div[@class="headingArea "]/h2',
-         '//td/span/strong[@id="span_product_price_text"]',
-         '//td/span/strong[@id="span_product_price_sales"]']
-start_url = 'https://jolse.com/category/skincare/1018'
-last_page = '//p[@class="last"]'
-page = 'page='
-steps = 1
-last_page_xpath = '//li[@class="xans-record-"]/a[@class="this"]'
-regular_exp = {'Price': r'\d+\.\d+', 'Discounted Price': r'\d+\.\d+'}
-prod = '//div[contains(@class, "normalpackage")]//p[@class="name"]/a'
 
-jolse = Venom(starting_url=start_url, column_names=cols, xpaths=xpath, regex=regular_exp, product_xpath=prod)
+class Jolse(Venom):
+    starting_url = 'https://jolse.com/category/skincare/1018'
+    column_names = ['Brand', 'Product', 'Price', 'Discounted Price']
+    xpaths = ['//tr[@class="prd_brand_css  xans-record-"]//td/span[2]',
+              '//div[@class="headingArea "]/h2',
+              '//td/span/strong[@id="span_product_price_text"]',
+              '//td/span/strong[@id="span_product_price_sales"]']
+    product_xpath = '//div[contains(@class, "normalpackage")]//p[@class="name"]/a'
+    regex = {'Price': r'\d+\.\d+', 'Discounted Price': r'\d+\.\d+'}
+    last_page_xpath = '//li[@class="xans-record-"]/a[@class="this"]'
+    last_page_arrow = '//p[@class="last"]'
+    page_query = 'page='
 
-jolse.calculate_urls(page_query=page, page_steps=steps, last_page_xpath=last_page_xpath,
-                     last_page_arrow=last_page).get_services_urls().scrape()
+
+if __name__ == '__main__':
+    jolse = Jolse("Jolse")
+    jolse.calculate_urls().get_services_urls().scrape()

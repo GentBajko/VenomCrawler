@@ -1,6 +1,7 @@
 import os
 from multiprocessing import Pool
 from venom import Venom
+import asyncio
 
 splits = 6
 
@@ -33,6 +34,7 @@ def jobs(*args, splits):
     arguments = [[*args] + [splits, i] for i in range(splits)]
     instances = [x for x in map(Venom, *zip(*arguments))]
     pool.map(start, instances)
+    # start_url, cols, xpath, None, None, prod, regular_exp
 
 
 if __name__ == '__main__':
