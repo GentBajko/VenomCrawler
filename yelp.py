@@ -33,7 +33,7 @@ if __name__ == '__main__':
     for i in range(4):
         with open('test', 'wb') as f:
             dill.dump(Venom(starting_url=start_url, column_names=columns, xpaths=selectors, url_queries=queries,
-                            error_xpaths=errors, product_xpath=business_xpath, regex=regular_exp, splits=4, chunk=i),
+                            error_xpaths=errors, product_xpath=business_xpath, regex=regular_exp, chunksize=4, chunk=i),
                       f)
 
     # predefined_urls = pd.read_csv('yelp data.csv')['url'].tolist()

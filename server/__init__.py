@@ -1,6 +1,8 @@
-from flask import Flask, render_template, request, session, redirect, url_for
+from flask import Flask, render_template, request, session, redirect, url_for, abort
 import utils.mongo as mdb
 import bcrypt
+import os
+from server.forms import RegistrationForm, LoginForm
 
 app = Flask(__name__)
 
@@ -10,7 +12,7 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/login', methods=['POST'])
+@app.route('/api/login', methods=['POST'])
 def login():
     req = {k: v[0] for k, v in request.form.lists()}
     user = mdb.users.find_one({'username': req['username']})
@@ -24,8 +26,12 @@ def login():
     return 'Invalid username/password. Please try again.'
 
 
-@app.route('/register', methods=['GET', 'POST'])
+@app.route('/api/register', methods=['GET', 'POST'])
 def register():
+    req = request.form
+    print(req)
+    user_schema = RegistrationForm()
+    user_schema.load(req)
     req = {k: v[0] for k, v in request.form.lists()}
     print(req)
     exists = mdb.users.find_one({'username': req['username']})
@@ -40,12 +46,12 @@ def register():
     return render_template('register.html')
 
 
-@app.route('/profile')
+@app.route('/api/profile')
 def profile():
     pass
 
 
-@app.route('/create', methods=['POST'])
+@app.route('/api/create', methods=['POST'])
 def create():
     req = request.form
     username = session['username']
