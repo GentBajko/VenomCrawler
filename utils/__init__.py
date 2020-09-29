@@ -31,15 +31,16 @@ def split_urls(urls_list, batch_size):
         yield list(urls_list)[i:i + batch_size]
 
 
-def join_files(site) -> None:
+def join_files(site):
     pages = pd.DataFrame(dtype=object)
     for file in os.listdir(site):
         df = pd.read_csv(f'{site}/{file}', index_col=0)
         pages = pd.concat([pages, df], axis=0, join='outer')
-        os.remove(file)
-    pages.reset_index().drop('index', axis=1)
-    pages.to_csv(f'{site}.csv')
+        # os.remove(file)
+    pages = pages.reset_index().drop('index', axis=1)
+    print(pages)
+    return pages
 
 
 if __name__ == "__main__":
-    pass
+    join_files(f'{os.getcwd()}/jolse.com')

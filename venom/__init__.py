@@ -36,7 +36,7 @@ class Venom:
     load_more: str = None
     save_file: bool = True
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, chunksize: int = None, chunk: int = None):
         self.name = name
         if self.url_queries:
             url_queries = (''.join(chain.from_iterable(e)) for e in
@@ -49,10 +49,8 @@ class Venom:
         self.pages = []
         self.data = {k: [] for k in self.selectors}
         self.final_urls = {'source_url': [], 'page_url': [], 'product_url': []}
-        if len(sys.argv) > 1:
-            self.chunksize = int(sys.argv[1])
-            self.chunk = int(sys.argv[2])
-            print(self.chunksize, self.chunk)
+        self.chunksize = int(sys.argv[1]) if len(sys.argv) > 1 else chunksize
+        self.chunk = int(sys.argv[2]) if len(sys.argv) > 1 else chunk
         self.start_time = datetime.now()
         print(f"Initialized: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
@@ -65,22 +63,25 @@ class Venom:
     def save(self, url_list: list, name: str):
         if not self.save_file:
             return
-        date = datetime.now().strftime('%Y-%m-%d')
+        date = self.start_time.strftime('%Y-%m-%d')
         series = pd.Series(url_list)
         website = self.starting_url.split("/")[2]
         if website not in os.listdir(os.getcwd()):
             os.mkdir(website)
+        if name not in os.listdir(os.path.join(os.getcwd(), website)):
+            os.mkdir(os.path.join(os.getcwd(), website, name))
         if self.chunksize:
             if self.chunksize == self.chunk:
-                pd.DataFrame(self.data).to_csv(f'{website}/{website} {name} {self.chunk}.csv', encoding='utf-8-sig')
+                pd.DataFrame(self.data).to_csv(f'{website}/{name}/{website} {name} {self.chunk}.csv',
+                                               encoding='utf-8-sig')
                 join_files(website)
             else:
-                series.to_csv(f'{website}/{website} {name} {self.chunk}.csv', encoding='utf-8-sig')
+                series.to_csv(f'{website}/{name}/{website} {name} {self.chunk}.csv', encoding='utf-8-sig')
         else:
-            series.to_csv(f'{website}/{website} {name} {date}.csv', encoding='utf-8-sig')
+            series.to_csv(f'{website}/{name}/{website} {name} {date}.csv', encoding='utf-8-sig')
 
     def check_split(self, url_list: list):
-        if self.chunksize:
+        if self.chunksize and len(url_list) > self.chunksize:
             return np.array_split(url_list, self.chunksize)[self.chunk]
         return url_list
 
@@ -152,7 +153,7 @@ class Venom:
         if self.product_xpath:
             urls = self.check_split(self.pages)
             counter = len(urls)
-            for source in urls[:1]:
+            for source in urls:
                 start = perf_counter()
                 complete = len(self.pages) - counter
                 self.driver.get(source)
@@ -193,7 +194,7 @@ class Venom:
         predefined = self.predefined_url_list
         urls = self.check_split(predefined) if self.predefined_url_list else self.check_split(urls)
         counter = len(urls)
-        for url in urls[:5]:
+        for url in urls:
             start = perf_counter()
             complete = len(urls) - counter
             sys.stdout.flush()
