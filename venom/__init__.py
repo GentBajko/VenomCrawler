@@ -12,7 +12,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
 
 from utils import get_selectors, concat_keys_values, join_files
-import dill
+import pickle
+from time import sleep
 
 
 class Venom:
@@ -29,27 +30,26 @@ class Venom:
     page_steps: int
     last_page_xpath: str
     last_page_arrow: str = None
-    save_file: bool = True
     search_xpath: str = None
     search_terms: str = None
     predefined_url_list: list = None
     load_more: str = None
+    save_file: bool = True
 
-    def __init__(self, name: str, chunk: int = None):
+    def __init__(self, name: str):
         self.name = name
         if self.url_queries:
             url_queries = (''.join(chain.from_iterable(e)) for e in
                            product(*map(concat_keys_values, self.url_queries.items())))
-            self.urls = (''.join(url).replace(' ', '%20') for url in product([self.starting_url], url_queries))
+            self.urls = [''.join(url).replace(' ', '%20') for url in product([self.starting_url], url_queries)]
         else:
             self.urls = [self.starting_url]
         self.driver = None
         self.selectors = get_selectors(self.column_names, self.xpaths)
         self.pages = []
-        self.data = {k: [] for k, _ in self.selectors.items()}
+        self.data = {k: [] for k in self.selectors}
         self.final_urls = {'source_url': [], 'page_url': [], 'product_url': []}
-        self.chunk = chunk
-        if not self.chunksize and len(sys.argv) > 1:
+        if len(sys.argv) > 1:
             self.chunksize = int(sys.argv[1])
             self.chunk = int(sys.argv[2])
             print(self.chunksize, self.chunk)
@@ -62,11 +62,27 @@ class Venom:
         self.driver = webdriver.Chrome(os.path.join(os.environ['CHROMEDRIVER']), options=options)
         return self
 
-    def check_split(self):
+    def save(self, url_list: list, name: str):
+        if not self.save_file:
+            return
+        date = datetime.now().strftime('%Y-%m-%d')
+        series = pd.Series(url_list)
+        website = self.starting_url.split("/")[2]
+        if website not in os.listdir(os.getcwd()):
+            os.mkdir(website)
         if self.chunksize:
-            urls = [url for url in self.urls]
-            return np.array_split(urls, self.chunksize)[self.chunk]
-        return [url for url in self.urls]
+            if self.chunksize == self.chunk:
+                pd.DataFrame(self.data).to_csv(f'{website}/{website} {name} {self.chunk}.csv', encoding='utf-8-sig')
+                join_files(website)
+            else:
+                series.to_csv(f'{website}/{website} {name} {self.chunk}.csv', encoding='utf-8-sig')
+        else:
+            series.to_csv(f'{website}/{website} {name} {date}.csv', encoding='utf-8-sig')
+
+    def check_split(self, url_list: list):
+        if self.chunksize:
+            return np.array_split(url_list, self.chunksize)[self.chunk]
+        return url_list
 
     def error(self):
         if self.error_xpaths:
@@ -78,16 +94,14 @@ class Venom:
                     continue
 
     def tryexcept(self, name, xpath):
-        if self.regex:
-            if name in self.regex.keys():
-                pattern = repr(self.regex[name]).replace("'", '')
-                try:
-                    element = self.driver.find_element_by_xpath(xpath).text
-                    regex = re.findall(pattern, element)
-                    element = [''.join(x) for x in regex][0].strip()
-                    self.data[name].append(element)
-                except (NoSuchElementException, UnexpectedAlertPresentException):
-                    self.data[name].append(np.NaN)
+        if self.regex and name in self.regex.keys():
+            pattern = fr"{self.regex[name]}"
+            try:
+                element = self.driver.find_element_by_xpath(xpath).text
+                regex = re.findall(pattern, element)[0].strip()
+                self.data[name].append(regex)
+            except (NoSuchElementException, UnexpectedAlertPresentException):
+                self.data[name].append(np.NaN)
         else:
             try:
                 element = self.driver.find_element_by_xpath(xpath).text
@@ -96,7 +110,7 @@ class Venom:
                 self.data[name].append(np.NaN)
 
     def pagination(self):
-        urls = self.check_split()
+        urls = self.check_split(self.urls)
         for url in urls:
             self.driver.get(url)
             if not self.error():
@@ -111,7 +125,7 @@ class Venom:
         return self
 
     def calculate_urls(self):
-        urls = self.check_split()
+        urls = self.urls
         counter = len(urls)
         for url in urls:
             start = perf_counter()
@@ -120,6 +134,7 @@ class Venom:
             if not self.error():
                 if self.last_page_arrow:
                     self.driver.find_element_by_xpath(self.last_page_arrow).click()
+                    sleep(1.5)
                 last_page = self.driver.find_element_by_xpath(self.last_page_xpath).text
                 last_page = re.search(r'\d+$', last_page).group()
                 page_range = [str(i) for i in
@@ -130,42 +145,33 @@ class Venom:
                 counter -= 1
                 sys.stdout.write(f'\r{complete} out of {counter + complete} URLs have been scraped. {counter} left. '
                                  f'{(perf_counter() - start):0.2f}')
-        if self.save_file:
-            series = pd.Series(self.pages)
-            website = self.starting_url.split("/")[2]
-            if website not in os.listdir(os.getcwd()):
-                os.mkdir(website)
-            if self.chunksize:
-                if self.chunksize == self.chunk:
-                    pd.DataFrame(self.data).to_csv(f'{website}/{website} pages {self.chunk}.csv', encoding='utf-8-sig')
-                    join_files(website)
-                else:
-                    series.to_csv(f'{website}/{website} pages {self.chunk}.csv', encoding='utf-8-sig')
-            else:
-                series.to_csv(f'{website}/{website} pages.csv', encoding='utf-8-sig')
+        self.save(self.pages, 'pages')
         return self
 
     def get_services_urls(self):
         if self.product_xpath:
-            counter = len(list(self.pages))
-            for source in self.pages:
+            urls = self.check_split(self.pages)
+            counter = len(urls)
+            for source in urls[:1]:
                 start = perf_counter()
                 complete = len(self.pages) - counter
                 self.driver.get(source)
                 urls = self.driver.find_elements_by_xpath(self.product_xpath)
-                products = (url.text for url in urls)
+                products = (url.get_attribute('href') for url in urls)
                 for url in products:
                     self.final_urls['page_url'].append(source)
                     self.final_urls['product_url'].append(url)
                 counter -= 1
                 sys.stdout.write(f'\r{complete} out of {counter + complete} URLs have been scraped. {counter} left. '
                                  f'{(perf_counter() - start):0.2f}')
+
+            self.save(self.final_urls['product_url'], 'products')
         else:
             raise AttributeError
         return self
 
     def search(self):
-        urls = self.check_split()
+        urls = self.check_split(self.urls)
         counter = len(urls)
         self.driver.get(*self.urls)
         search = self.driver.find_element_by_xpath(self.search_xpath)
@@ -183,26 +189,22 @@ class Venom:
         return self
 
     def scrape(self):
-        if len(list(self.urls)) > 1:
-            if self.chunksize:
-                if self.predefined_url_list:
-                    urls = np.array_split(self.predefined_url_list, self.chunksize)[self.chunk]
-                else:
-                    urls = np.array_split(self.final_urls, self.chunksize)[self.chunk]
-            else:
-                urls = self.predefined_url_list if self.predefined_url_list else self.final_urls
-        else:
-            urls = self.pages
-        counter = len(list(urls))
-        for url in urls:
+        urls = self.final_urls['product_url']
+        predefined = self.predefined_url_list
+        urls = self.check_split(predefined) if self.predefined_url_list else self.check_split(urls)
+        counter = len(urls)
+        for url in urls[:5]:
             start = perf_counter()
-            complete = len(list(urls)) - counter
+            complete = len(urls) - counter
             sys.stdout.flush()
             if self.load_more:
-                load = self.driver.find_element_by_xpath(self.load_more)
-                while load:
-                    load.click()
-                    # TODO: Check if sleep is needed
+                while True:
+                    try:
+                        load = self.driver.find_element_by_xpath(self.load_more)
+                        load.click()
+                        sleep(1.3)
+                    except NoSuchElementException:
+                        break
             self.driver.get(url)
             if not self.error():
                 for column, selector in self.selectors.items():
@@ -222,10 +224,11 @@ class Venom:
                 pd.DataFrame(self.data).to_csv(f'{website}/{website} {self.chunk}.csv', encoding='utf-8-sig')
         else:
             date = datetime.now().strftime('%Y-%m-%d')
-            pd.DataFrame(self.data).to_csv(f'{website}/{website} {date}.csv', encoding='utf-8-sig')
+            df = pd.DataFrame.from_dict(self.data, orient='index').T
+            df.to_csv(f'{website}/{website} {date}.csv', encoding='utf-8-sig')
         print(f"\n\nFinished: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         return self
 
     def serialize(self):
         with open(f"{self.name}.pkl", 'wb') as f:
-            dill.dump(self, f)
+            pickle.dump(self, f)
