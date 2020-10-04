@@ -1,7 +1,6 @@
-from venom import Venom
+from utils.jobs import Venom
 
-
-class Jolse(Venom):
+if __name__ == '__main__':
     starting_url = 'https://jolse.com/category/skincare/1018'
     column_names = ['Brand', 'Product', 'Price', 'Discounted Price']
     xpaths = ['//tr[@class="prd_brand_css  xans-record-"]//td/span[contains(@style,"color")]',
@@ -14,8 +13,6 @@ class Jolse(Venom):
     last_page_arrow = '//p[@class="last"]'
     page_query = '?page='
     page_steps = 1
-
-
-if __name__ == '__main__':
-    jolse = Jolse("Jolse")
-    jolse.init_driver().calculate_urls().get_services_urls().scrape()
+    Venom(name="Glowyskin", starting_url=starting_url, column_names=column_names,
+          xpaths=xpaths, product_xpath=product_xpath, page_query=page_query,
+          page_steps=page_steps, last_page_xpath=last_page_xpath, regex=regex)
