@@ -1,5 +1,5 @@
 from marshmallow import Schema, fields, validates, ValidationError
-from marshmallow.validate import Length, Range, Email, Equal
+from marshmallow.validate import Length, Email
 
 
 class RegistrationForm(Schema):

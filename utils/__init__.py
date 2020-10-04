@@ -1,8 +1,8 @@
+import os
 from time import perf_counter
 
-import pandas as pd
 import numpy as np
-import os
+import pandas as pd
 
 
 def timer(func):

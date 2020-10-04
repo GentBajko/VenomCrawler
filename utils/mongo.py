@@ -1,6 +1,6 @@
 import os
+
 import pymongo
-from datetime import datetime
 
 cluster = pymongo.MongoClient(os.environ['VENOM_MONGO'])
 db = cluster["venom"]

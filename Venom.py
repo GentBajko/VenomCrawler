@@ -17,7 +17,7 @@ from utils import get_selectors, concat_keys_values, join_files, check_files
 
 class VenomCrawler:
     # TODO: Check if you can combine starting URL with the url queries
-    # TODO: Save Source, Page and Product URL
+    # TODO: Save Source, Page and Product URL. Add them to self.data and add method drop(self) to drop unneeded cols
     def __init__(self, name: str, starting_url: str, column_names: list, xpaths: list, next_xpath: str = None,
                  product_xpath: str = None, url_queries: dict = None, page_query: str = None, page_steps: int = None,
                  last_page_xpath: str = None, last_page_arrow: str = None, search_xpath: str = None,
