@@ -74,6 +74,10 @@ class VenomCrawler:
     def __save(self, data: list or dict, name: str):
         date = self.start_time.strftime('%Y-%m-%d')
         df = pd.Series(data) if type(data) == list else pd.DataFrame(data)
+        columns = ['Date'] + df.columns.to_list()
+        df['Date'] = [date] * len(df)
+        df = df[columns]
+        df.index += 1
         if 'crawlers' not in os.getcwd():
             path = os.path.join(os.getcwd(), 'crawlers', 'data', self.name, name)
         else:
@@ -88,6 +92,7 @@ class VenomCrawler:
             df.to_csv(f'{path}/{name} {self.chunk}.csv', encoding='utf-8-sig')
             if check_files(path, name, self.chunksize):
                 full_data = join_files(path, name)
+                full_data.index += 1
                 if f"{self.name} {date}.csv" not in os.listdir(path):
                     full_data.to_csv(f"{path}/{self.name} {date}.csv", encoding='utf-8-sig')
                 else:
