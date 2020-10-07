@@ -9,8 +9,12 @@ def initiateVenom(*args):
         venom.pagination().get_services_urls().scrape()
     elif venom.search_xpath:
         venom.search().get_services_urls().scrape()
-    else:
+    elif venom.page_query:
         venom.calculate_urls().get_services_urls().scrape()
+    elif venom.product_xpath:
+        venom.get_services_urls().scrape()
+    else:
+        venom.scrape()
 
 
 def Venom(name: str, starting_url: str, column_names: list, xpaths: list, next_xpath: str = None,

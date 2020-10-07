@@ -11,8 +11,11 @@ import pandas as pd
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as ec
 
-from utils import get_selectors, concat_keys_values, join_files, check_files
+from utils.utils import get_selectors, concat_keys_values, join_files, check_files
 
 
 class VenomCrawler:
@@ -32,18 +35,14 @@ class VenomCrawler:
             self.urls = (''.join(url).replace(' ', '%20') for url in product([starting_url], url_queries))
         else:
             self.urls = [starting_url]
-        options = Options()
-        options.headless = True
-        self.driver = webdriver.Chrome(os.path.join(os.environ['CHROMEDRIVER']), options=options)
         self.selectors = get_selectors(column_names, xpaths)
         self.error_xpaths = error_xpaths
         self.product_xpath = product_xpath
         self.regex = regex
         self.data = {k: [] for k in self.selectors}
-        self.pages = []
         self.source = {'source_url': [], 'page_url': [], 'product_url': []}
         self.chunksize = None if chunksize == 1 else chunksize
-        self.chunk = None if chunk == 1 else chunk
+        self.chunk = chunk
         self.next_xpath = next_xpath
         self.page_query = page_query
         self.page_steps = page_steps
@@ -54,34 +53,56 @@ class VenomCrawler:
         self.load_more = load_more
         self.save_file = save_file
         self.predefined_url_list = predefined_url_list
+        self.__driver()
         self.start_time = datetime.now()
-        print(f"Initialized: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        if self.chunksize - 1 == chunk:
+            print(f"Initialized: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
-    def save(self, data: list or dict, name: str):
+    def __driver(self):
+        self.options = Options()
+        self.options.headless = True
+        self.options.add_argument('--disable-extensions')
+        self.options.add_argument('--profile-directory=Default')
+        self.options.add_argument("--incognito")
+        self.options.add_argument("--disable-plugins-discovery")
+        self.options.add_argument("--start-maximized")
+        self.driver = webdriver.Chrome(os.path.join(os.environ['CHROMEDRIVER']), options=self.options)
+        self.driver.delete_all_cookies()
+        self.driver.set_window_size(800, 800)
+        self.driver.set_window_position(0, 0)
+
+    def __save(self, data: list or dict, name: str):
         date = self.start_time.strftime('%Y-%m-%d')
         df = pd.Series(data) if type(data) == list else pd.DataFrame(data)
+        if 'crawlers' not in os.getcwd():
+            path = os.path.join(os.getcwd(), 'crawlers', 'data', self.name, name)
+        else:
+            path = os.path.join(os.getcwd(), 'data', self.name, name)
         if 'data' not in os.listdir(os.getcwd()):
             os.mkdir('data')
         if self.name not in os.listdir(os.path.join(os.getcwd(), 'data')):
             os.mkdir(f'data/{self.name}')
         if name not in os.listdir(os.path.join(os.path.join(os.getcwd(), 'data', self.name))):
             os.mkdir(os.path.join(os.getcwd(), 'data', self.name, name))
-        if self.chunksize:
-            if check_files(self.chunksize, os.path.join('data', self.name, name), name):
-                df.to_csv(f'data/{self.name}/{name}/{self.name} {name} {self.chunk}.csv',
-                          encoding='utf-8-sig')
-                join_files(self.name, name).to_csv(f"{self.name} {date}")
-            else:
-                df.to_csv(f'data/{self.name}/{name}/{self.name} {name} {self.chunk}.csv', encoding='utf-8-sig')
+        if self.chunksize and name not in ['pages', 'products']:
+            df.to_csv(f'{path}/{name} {self.chunk}.csv', encoding='utf-8-sig')
+            if check_files(path, name, self.chunksize):
+                full_data = join_files(path, name)
+                if f"{self.name} {date}.csv" not in os.listdir(path):
+                    full_data.to_csv(f"{path}/{self.name} {date}.csv", encoding='utf-8-sig')
+                else:
+                    count = len([file for file in os.listdir(path)
+                                 if f'{self.name} {date}' in file and file.endswith('.csv')])
+                    full_data.to_csv(f"{path}/{self.name} {date} {count}.csv", encoding='utf-8-sig')
         else:
-            df.to_csv(f'data/{self.name}/{name}/{self.name} {name} {date}.csv', encoding='utf-8-sig')
+            df.to_csv(f'data/{self.name}/{name}/{self.name} {date}.csv', encoding='utf-8-sig')
 
-    def check_split(self, url_list: list):
+    def __check_split(self, url_list: list):
         if self.chunksize and len(url_list) > self.chunksize:
             return np.array_split(url_list, self.chunksize)[self.chunk]
         return url_list
 
-    def error(self):
+    def __error(self):
         if self.error_xpaths:
             for err in self.error_xpaths:
                 try:
@@ -90,7 +111,7 @@ class VenomCrawler:
                 except (NoSuchElementException, UnexpectedAlertPresentException):
                     continue
 
-    def tryexcept(self, name, xpath):
+    def __tryexcept(self, name, xpath):
         if self.regex and name in self.regex.keys():
             pattern = fr"{self.regex[name]}"
             try:
@@ -107,7 +128,7 @@ class VenomCrawler:
             except (NoSuchElementException, UnexpectedAlertPresentException):
                 self.data[name].append(np.NaN)
 
-    def scroll(self, timeout: int = None):
+    def __scroll(self, timeout: int = None):
         scroll_pause_time = timeout
         last_height = self.driver.execute_script("return document.body.scrollHeight")
         while True:
@@ -118,11 +139,19 @@ class VenomCrawler:
                 break
             last_height = new_height
 
+    def __wait_to_load(self, time, xpath=None):
+        if xpath:
+            wait = WebDriverWait(self.driver, time)
+            wait.until(ec.element_to_be_clickable((By.XPATH, xpath)))
+        else:
+            self.driver.implicitly_wait(time)
+
     def pagination(self):
         urls = self.urls
         for url in urls:
+            self.options.add_argument(f"user-agent=")
             self.driver.get(url)
-            if not self.error():
+            if not self.__error():
                 while True:
                     self.source['source_url'].append(self.driver.current_url)
                     try:
@@ -139,7 +168,8 @@ class VenomCrawler:
             start = perf_counter()
             complete = len(urls) - counter
             self.driver.get(url)
-            if not self.error():
+            if not self.__error():
+                self.__wait_to_load(10)
                 if self.last_page_arrow:
                     self.driver.find_element_by_xpath(self.last_page_arrow).click()
                     sleep(1.5)
@@ -154,31 +184,29 @@ class VenomCrawler:
                 tuples = product([url], [self.page_query], page_range)
                 new_urls = [''.join(link) for link in tuples]
                 [self.source['source_url'].append(link) for link in new_urls]
-                counter -= 1
                 sys.stdout.write(f'\r{complete} out of {counter + complete} URLs have been scraped. {counter} left. '
-                                 f'{(perf_counter() - start):0.2f}')
-        self.save(self.source['source_url'], 'pages')
+                                 f'Scraped in {(perf_counter() - start):0.2f} seconds')
+                counter -= 1
+        self.__save(self.source['source_url'], 'pages')
         return self
 
     def get_services_urls(self):
         if self.product_xpath:
-            urls = self.source['source_url']
+            urls = self.source['source_url'] if len(self.source['source_url']) != 0 else self.urls
             counter = len(urls)
             for source in urls:
                 start = perf_counter()
                 complete = len(urls) - counter
                 self.driver.get(source)
-
-                urls = self.driver.find_elements_by_xpath(self.product_xpath)
-                products = (url.get_attribute('href') for url in urls)
+                links = self.driver.find_elements_by_xpath(self.product_xpath)
+                products = (url.get_attribute('href') for url in links)
                 for url in products:
                     self.source['page_url'].append(source)
                     self.source['product_url'].append(url)
-                counter -= 1
                 sys.stdout.write(f'\r{complete} out of {counter + complete} URLs have been scraped. {counter} left. '
-                                 f'{(perf_counter() - start):0.2f}')
-
-            self.save(self.source['product_url'], 'products')
+                                 f'Scraped in {(perf_counter() - start):0.2f} seconds')
+                counter -= 1
+            self.__save(self.source['product_url'], 'products')
         else:
             raise AttributeError
         return self
@@ -195,18 +223,18 @@ class VenomCrawler:
                 complete = len(search_terms) - counter
                 sys.stdout.flush()
                 search.send_keys(term)
-                if not self.error():
+                if not self.__error():
                     url = self.driver.current_url
                     self.source['source_url'].append(url)
-                    counter -= 1
                     sys.stdout.write(f'\r{complete} out of {counter + complete} URLs have been scraped.'
-                                     f' {counter} left. {(perf_counter() - start):0.2f}')
+                                     f' {counter} left. Scraped in {(perf_counter() - start):0.2f} seconds')
+                    counter -= 1
         return self
 
     def scrape(self):
         urls = self.source['product_url']
         predefined = self.predefined_url_list
-        urls = self.check_split(predefined) if self.predefined_url_list else self.check_split(urls)
+        urls = self.__check_split(predefined) if self.predefined_url_list else self.__check_split(urls)
         counter = len(urls)
         for url in urls:
             start = perf_counter()
@@ -218,21 +246,24 @@ class VenomCrawler:
                     try:
                         load = self.driver.find_element_by_xpath(self.load_more)
                         load.click()
-                        sleep(1.3)
+                        self.__wait_to_load(self.load_more, 10)
                     except NoSuchElementException:
                         break
-            if not self.error():
+            if not self.__error():
                 for column, selector in self.selectors.items():
-                    self.tryexcept(column, selector)
-            counter -= 1
+                    self.__tryexcept(column, selector)
             sys.stdout.write(f'\r{complete} out of {counter + complete} URLs have been scraped. {counter} left. '
-                             f'{(perf_counter() - start):0.2f}')
+                             f'Scraped in {(perf_counter() - start):0.2f} seconds')
+            counter -= 1
         self.driver.quit()
         self.save_file = True
-        self.save(self.data, 'data')
+        self.__save(self.data, 'data')
 
         finish = perf_counter() - self.start
         hours = (finish // 60) // 60
         minutes = (finish // 60) % 60
         seconds = finish % 60
-        print(f'\nFinished in {hours} hour(s), {minutes} minute(s) and {seconds} seconds.')
+        if check_files(os.path.join(os.getcwd(), 'data', self.name, 'data'), 'data', self.chunksize):
+            print(f'\nFinished in {hours} hour(s), {minutes} minute(s) and {seconds} seconds.')
+        else:
+            print(f"\nFinished {self.name}'s chunk #{self.chunk}")

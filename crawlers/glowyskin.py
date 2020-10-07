@@ -18,4 +18,4 @@ if __name__ == '__main__':
 
     Venom("Glowyskin", starting_url=starting_url, column_names=column_names,
           xpaths=xpaths, product_xpath=product_xpath, page_query=page_query,
-          page_steps=page_steps, last_page_xpath=last_page_xpath, regex=regex)
+          page_steps=page_steps, last_page_xpath=last_page_xpath, regex=regex, chunksize=6)
