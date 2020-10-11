@@ -39,4 +39,4 @@ def replace_mongo(collection: pymongo.collection.Collection,
 
 
 if __name__ == '__main__':
-    pass
+    print([x for x in users.find({})])

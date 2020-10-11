@@ -21,11 +21,11 @@ if __name__ == '__main__':
           xpaths=xpaths, product_xpath=product_xpath, page_query=page_query,
           page_steps=page_steps, last_page_xpath=last_page_xpath,
           last_page_arrow=last_page_arrow, regex=regex, chunksize=8)
-    files = [pd.read_csv('crawlers/data/Jolse/data{file}', index_col=0)
-             for file in os.listdir('crawlers/data/Jolse/data')
+    files = [pd.read_csv(f'data/Jolse/data/{file}', index_col=0, encoding='utf-8-sig')
+             for file in os.listdir('data/Jolse/data')
              if 'Jolse' in file and file.endswith('.csv') and file != 'Jolse.csv']
     df = pd.concat(files).reset_index().drop('index', axis=1)
     df['Discount %'] = (df['Discounted Price'].divide(df['Price'])).apply(lambda x: (1 - x) * 100)
     df['Discount %'] = df['Discount %'].round(2)
-    df = df[['Date', 'Brand', 'Product', 'Price', 'Discounted Price']]
-    df.to_csv('crawlers/data/Jolse/data/Jolse.csv', encoding='utf-8-sig')
+    df.index += 1
+    df.to_csv('data/Jolse/data/Jolse.csv', encoding='utf-8-sig')
