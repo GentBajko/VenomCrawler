@@ -16,19 +16,29 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 
 from utils.utils import get_selectors, concat_keys_values, join_files, check_files
+import threading
 
 
 class VenomCrawler:
     # TODO: Check if you can combine starting URL with the url queries
     # TODO: Save Source, Page and Product URL.
-    #  Add them to self.data and add method drop(self) to drop unneeded cols
-    def __init__(self, name: str, starting_url: str, column_names: list, xpaths: list,
-                 next_xpath: str = None, product_xpath: str = None, url_queries: dict = None,
-                 page_query: str = None, page_steps: int = None, last_page_xpath: str = None,
-                 last_page_arrow: str = None, search_xpath: str = None,
-                 search_terms: str = None, load_more: str = None, regex: dict = None,
-                 predefined_url_list: list = None, error_xpaths: list = None,
-                 chunksize: int = None, chunk: int = None):
+    #  Add them to self.data and add method drop(self) to drop unneeded cols from data
+    def __init__(self, name: str, starting_url: str,
+                 column_names: list, xpaths: list,
+                 next_xpath: str = None, product_xpath: str = None,
+                 url_queries: dict = None,
+                 page_query: str = None,
+                 page_steps: int = None,
+                 last_page_xpath: str = None,
+                 last_page_arrow: str = None,
+                 search_xpath: str = None,
+                 search_terms: str = None,
+                 load_more: str = None,
+                 regex: dict = None,
+                 predefined_url_list: list = None,
+                 error_xpaths: list = None,
+                 chunksize: int = None,
+                 chunk: int = None):
         self.start = perf_counter()
         self.name = name
         self.starting_url = starting_url
@@ -44,7 +54,9 @@ class VenomCrawler:
         self.product_xpath = product_xpath
         self.regex = regex
         self.data = {k: [] for k in self.selectors}
-        self.source = {'source_url': [], 'page_url': [], 'product_url': []}
+        self.source = []
+        self.pages = []
+        self.products = []
         self.chunksize = None if chunksize == 1 else chunksize
         self.chunk = chunk
         self.next_xpath = next_xpath
@@ -69,8 +81,9 @@ class VenomCrawler:
         self.options.add_argument("--incognito")
         self.options.add_argument("--disable-plugins-discovery")
         self.options.add_argument("--start-maximized")
-        self.driver = webdriver.Chrome(os.path.join(os.environ['CHROMEDRIVER']),
-                                       options=self.options)
+        self.driver = webdriver.Chrome(
+            os.path.join(os.environ['CHROMEDRIVER']),
+            options=self.options)
         self.driver.delete_all_cookies()
         self.driver.set_window_size(800, 800)
         self.driver.set_window_position(0, 0)
@@ -93,7 +106,8 @@ class VenomCrawler:
             os.mkdir('data')
         if self.name not in os.listdir(os.path.join(os.getcwd(), 'data')):
             os.mkdir(f'data/{self.name}')
-        if name not in os.listdir(os.path.join(os.path.join(os.getcwd(), 'data', self.name))):
+        if name not in os.listdir(os.path.join(
+                os.path.join(os.getcwd(), 'data', self.name))):
             os.mkdir(os.path.join(os.getcwd(), 'data', self.name, name))
         if self.chunksize and name not in ['pages', 'products']:
             df.to_csv(f'{path}/{name} {self.chunk}.csv', encoding='utf-8-sig')
@@ -182,66 +196,77 @@ class VenomCrawler:
             print(f"\nFinished {self.name}'s chunk #{self.chunk}")
 
     def pagination(self):
-        urls = self.urls
-        for url in urls:
-            self.options.add_argument(f"user-agent=")
-            self.driver.get(url)
-            if not self.__error():
-                while True:
-                    self.source['source_url'].append(self.driver.current_url)
-                    try:
-                        next_page = self.driver.find_element_by_xpath(self.next_xpath)
-                        next_page.click()
-                    except (NoSuchElementException, UnexpectedAlertPresentException):
-                        break
+        self.urls = iter(self.urls)
+        while True:
+            try:
+                url = next(self.urls)
+                self.driver.get(url)
+                if not self.__error():
+                    while True:
+                        self.source.append(self.driver.current_url)
+                        try:
+                            self.driver.find_element_by_xpath(self.next_xpath).click()
+                        except (NoSuchElementException, UnexpectedAlertPresentException):
+                            break
+            except StopIteration:
+                break
         return self
 
     def calculate_urls(self):
-        urls = self.urls
-        counter = len(urls)
-        for url in urls:
-            start = perf_counter()
-            complete = len(urls) - counter
-            self.driver.get(url)
-            if not self.__error():
-                self.__wait_to_load(20)
-                if self.last_page_arrow:
-                    self.driver.find_element_by_xpath(self.last_page_arrow).click()
-                    sleep(1.5)
-                last_page = self.driver.find_element_by_xpath(self.last_page_xpath).text
-                last_page = re.search(r'\d+$', last_page).group()
-                if self.page_steps == 1:
-                    page_range = [str(i) for i in
-                                  range(1, (int(last_page) * self.page_steps) + 1, self.page_steps)]
-                else:
-                    page_range = [str(i) for i in
-                                  range(0, int(last_page) * self.page_steps, self.page_steps)]
-                tuples = product([url], [self.page_query], page_range)
-                new_urls = [''.join(link) for link in tuples]
-                [self.source['source_url'].append(link) for link in new_urls]
-                sys.stdout.write(f'\r{complete} out of {counter + complete} URLs have been scraped. {counter} left. '
-                                 f'Scraped in {(perf_counter() - start):0.2f} seconds')
-                counter -= 1
-        self.__save(self.source['source_url'], 'pages')
+        self.urls = iter(self.urls)
+        while True:
+            try:
+                url = next(self.urls)
+                start = perf_counter()
+                self.driver.get(url)
+                if not self.__error():
+                    self.__wait_to_load(20)
+                    if self.last_page_arrow:
+                        self.driver.find_element_by_xpath(self.last_page_arrow).click()
+                        sleep(1.5)
+                    last_page = self.driver.find_element_by_xpath(self.last_page_xpath).text
+                    last_page = re.search(r'\d+$', last_page).group()
+                    if self.page_steps == 1:
+                        page_range = [str(i) for i in
+                                      range(1, (int(last_page) * self.page_steps) + 1,
+                                            self.page_steps)]
+                    else:
+                        page_range = [str(i) for i in
+                                      range(0, int(last_page) * self.page_steps, self.page_steps)]
+                    tuples = product([url], [self.page_query], page_range)
+                    new_urls = [''.join(link) for link in tuples]
+                    [self.source.append(link) for link in new_urls]
+                    sys.stdout.write(f'Scraped in {(perf_counter() - start):0.2f} seconds')
+            except StopIteration:
+                break
+        self.__save(self.source, 'pages')
         return self
 
     def get_services_urls(self):
         if self.product_xpath:
-            urls = self.source['source_url'] if len(self.source['source_url']) != 0 else self.urls
-            counter = len(urls)
-            for source in urls:
-                start = perf_counter()
-                complete = len(urls) - counter
-                self.driver.get(source)
-                links = self.driver.find_elements_by_xpath(self.product_xpath)
-                products = (url.get_attribute('href') for url in links)
-                for url in products:
-                    self.source['page_url'].append(source)
-                    self.source['product_url'].append(url)
-                sys.stdout.write(f'\r{complete} out of {counter + complete} URLs have been scraped. {counter} left. '
-                                 f'Scraped in {(perf_counter() - start):0.2f} seconds')
-                counter -= 1
-            self.__save(self.source['product_url'], 'products')
+            url_list = self.source if len(self.source) != 0 else self.urls
+            urls = iter(url_list)
+            print(url_list.__sizeof__())
+            length = len(url_list)
+            counter = length
+            while True:
+                try:
+                    source = next(urls)
+                    start = perf_counter()
+                    complete = length - counter
+                    self.driver.get(source)
+                    links = self.driver.find_elements_by_xpath(self.product_xpath)
+                    products = (source.get_attribute('href') for source in links)
+                    for url in products:
+                        self.pages.append(source)
+                        self.products.append(url)
+                    sys.stdout.write(f'\r{complete} out of {counter + complete} '
+                                     f'URLs have been scraped. {counter} left. '
+                                     f'Scraped in {(perf_counter() - start):0.2f} seconds')
+                    counter -= 1
+                except StopIteration:
+                    break
+            self.__save(self.products, 'products')
         else:
             raise AttributeError
         return self
@@ -249,40 +274,60 @@ class VenomCrawler:
     def search(self):
         urls = self.urls
         search_terms = np.array_split(self.search_terms, self.chunksize)[self.chunk]
-        counter = len(urls)
-        for url in urls:
-            self.driver.get(url)
-            search = self.driver.find_element_by_xpath(self.search_xpath)
-            for term in search_terms:
-                start = perf_counter()
-                complete = len(search_terms) - counter
-                sys.stdout.flush()
-                search.send_keys(term)
-                if not self.__error():
-                    url = self.driver.current_url
-                    self.source['source_url'].append(url)
-                    sys.stdout.write(f'\r{complete} out of {counter + complete} URLs have been scraped.'
-                                     f' {counter} left. Scraped in {(perf_counter() - start):0.2f} seconds')
-                    counter -= 1
+        counter, length = len(urls), len(urls)
+        while True:
+            try:
+                url = next(urls)
+                self.driver.get(next(url))
+                search = self.driver.find_element_by_xpath(self.search_xpath)
+                self.search_terms = iter(self.search_terms)
+                while True:
+                    try:
+                        search_term = next(self.search_terms)
+                        start = perf_counter()
+                        sys.stdout.flush()
+                        complete = len(search_terms) - counter
+                        search.send_keys(search_term)
+                        if not self.__error():
+                            url = self.driver.current_url
+                            self.source.append(url)
+                            sys.stdout.write(f'\r{complete} out of {counter + complete} '
+                                             f'URLs have been scraped.'
+                                             f' {counter} left. Scraped in '
+                                             f'{(perf_counter() - start):0.2f} seconds')
+                            counter -= 1
+                    except StopIteration:
+                        break
+            except StopIteration:
+                break
         return self
 
     def scrape(self):
-        urls = self.source['product_url']
         predefined = self.predefined_url_list
         urls = self.__check_split(predefined) if self.predefined_url_list\
-            else self.__check_split(urls)
-        counter = len(urls)
-        for url in urls:
-            start = perf_counter()
-            complete = len(urls) - counter
-            sys.stdout.flush()
-            self.driver.get(url)
-            self.__load_more()
-            self.__tryexcept()
-            sys.stdout.write(f'\r{complete} out of {counter + complete} URLs '
-                             f'have been scraped. {counter} URLs left. '
-                             f'Scraped in {(perf_counter() - start):0.2f} seconds')
-            counter -= 1
-        self.driver.quit()
+            else self.__check_split(self.products)
+        counter, length = len(urls), len(urls)
+        urls = iter(urls)
+        print(threading.enumerate(), threading.current_thread(), threading.activeCount(), threading.active_count(),
+              sep='\n')
+        while True:
+            try:
+                start = perf_counter()
+                sys.stdout.flush()
+                complete = length - counter
+                self.driver.get(next(urls))
+                self.__load_more()
+                self.__tryexcept()
+                sys.stdout.write(f'\r{complete} out of {counter + complete} URLs '
+                                 f'have been scraped. {counter} URLs left. '
+                                 f'Scraped in {(perf_counter() - start):0.2f} seconds')
+                counter -= 1
+            except StopIteration:
+                self.driver.quit()
+                break
         self.__save(self.data, 'data')
         self.__finish()
+
+
+if __name__ == '__main__':
+    pass

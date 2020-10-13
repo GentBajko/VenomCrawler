@@ -33,8 +33,9 @@ def register():
         if not exists:
             mdb.insert_mongo(mdb.users, req)
             session['username'] = req['username']
-            redirect(url_for('index'))
-        return redirect(url_for('login_page'))
+            return {'ok': True, 'redirect': '/'}
+        return {'ok': True, 'redirect': '/login'}
+    return {'ok': True, 'redirect': '/index'}
 
 
 @app.route('/login')
@@ -56,8 +57,8 @@ def login():
         if check_password:
             session['username'] = req['username']
             print(f"Welcome, {req['username']}")
-            return redirect(url_for('login_page'))
-    return redirect(url_for('index'))
+            return {'ok': True, 'redirect': '/'}
+    return {'ok': True, 'redirect': '/login'}
 
 
 @app.route('/api/profile')
