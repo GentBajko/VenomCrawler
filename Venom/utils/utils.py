@@ -3,7 +3,6 @@ from time import perf_counter
 
 import numpy as np
 import pandas as pd
-from shadow_useragent import ShadowUserAgent
 
 
 def timer(func):

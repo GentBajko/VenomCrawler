@@ -15,7 +15,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 
-from utils.utils import get_selectors, concat_keys_values, join_files, check_files
+from Venom.utils.utils import get_selectors, concat_keys_values, join_files, check_files
 import threading
 
 

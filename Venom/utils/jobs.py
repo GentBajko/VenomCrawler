@@ -1,6 +1,6 @@
 from pathos.multiprocessing import Pool
 
-from Venom import VenomCrawler
+from Venom.Venom import VenomCrawler
 
 
 def initiateVenom(*args):
