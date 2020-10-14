@@ -1,4 +1,4 @@
-from utils.jobs import Venom
+from Venom.utils.jobs import Venom
 import os
 import pandas as pd
 

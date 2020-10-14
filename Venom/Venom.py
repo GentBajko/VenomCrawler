@@ -6,23 +6,23 @@ from itertools import product, chain
 from time import perf_counter
 from time import sleep
 
+from fake_useragent import UserAgent
 import numpy as np
 import pandas as pd
-from selenium import webdriver
+import undetected_chromedriver as uc
+uc.install()
+from selenium.webdriver import Chrome, ChromeOptions
 from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 
-from Venom.utils.utils import get_selectors, concat_keys_values, join_files, check_files
+from Venom.utils.utils import get_selectors, concat_keys_values, join_files, check_files, check_url_prefix
+from Venom.utils.actions import find_elements, find_regex, fine_elements_by_text, get_useragent
 import threading
 
 
 class VenomCrawler:
-    # TODO: Check if you can combine starting URL with the url queries
-    # TODO: Save Source, Page and Product URL.
-    #  Add them to self.data and add method drop(self) to drop unneeded cols from data
     def __init__(self, name: str, starting_url: str,
                  column_names: list, xpaths: list,
                  next_xpath: str = None, product_xpath: str = None,
@@ -41,7 +41,7 @@ class VenomCrawler:
                  chunk: int = None):
         self.start = perf_counter()
         self.name = name
-        self.starting_url = starting_url
+        self.starting_url = check_url_prefix(starting_url)
         if url_queries:
             url_queries = (''.join(chain.from_iterable(e)) for e in
                            product(*map(concat_keys_values, url_queries.items())))
@@ -70,20 +70,18 @@ class VenomCrawler:
         self.predefined_url_list = predefined_url_list
         self.__driver()
         self.start_time = datetime.now()
+        self.useragent = UserAgent().random
         if self.chunksize - 1 == chunk:
             print(f"Initialized: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     def __driver(self):
-        self.options = Options()
+        self.options = ChromeOptions()
         self.options.headless = True
         self.options.add_argument('--disable-extensions')
         self.options.add_argument('--profile-directory=Default')
         self.options.add_argument("--incognito")
         self.options.add_argument("--disable-plugins-discovery")
-        self.options.add_argument("--start-maximized")
-        self.driver = webdriver.Chrome(
-            os.path.join(os.environ['CHROMEDRIVER']),
-            options=self.options)
+        self.driver = Chrome(options=self.options)
         self.driver.delete_all_cookies()
         self.driver.set_window_size(800, 800)
         self.driver.set_window_position(0, 0)
@@ -102,18 +100,11 @@ class VenomCrawler:
             path = os.path.join(os.getcwd(), 'crawlers', 'data', self.name, name)
         else:
             path = os.path.join(os.getcwd(), 'data', self.name, name)
-        if 'data' not in os.listdir(os.getcwd()):
-            os.mkdir('data')
-        if self.name not in os.listdir(os.path.join(os.getcwd(), 'data')):
-            os.mkdir(f'data/{self.name}')
-        if name not in os.listdir(os.path.join(
-                os.path.join(os.getcwd(), 'data', self.name))):
-            os.mkdir(os.path.join(os.getcwd(), 'data', self.name, name))
+        os.makedirs(path, exist_ok=True)
         if self.chunksize and name not in ['pages', 'products']:
             df.to_csv(f'{path}/{name} {self.chunk}.csv', encoding='utf-8-sig')
             if check_files(path, name, self.chunksize):
                 full_data = join_files(path, name)
-                full_data.index += 1
                 if f"{self.name} {date}.csv" not in os.listdir(path):
                     full_data.to_csv(f"{path}/{self.name} {date}.csv", encoding='utf-8-sig')
                 else:
@@ -144,9 +135,8 @@ class VenomCrawler:
             if self.regex and name in self.regex.keys():
                 pattern = fr"{self.regex[name]}"
                 try:
-                    element = self.driver.find_element_by_xpath(xpath).text
-                    regex = re.findall(pattern, element)[0]
-                    element = "".join(regex).strip()
+                    element = find_regex(pattern,
+                                         self.driver.find_element_by_xpath(xpath).text)
                     self.data[name].append(element)
                 except (NoSuchElementException, UnexpectedAlertPresentException):
                     self.data[name].append(np.NaN)
@@ -246,7 +236,6 @@ class VenomCrawler:
         if self.product_xpath:
             url_list = self.source if len(self.source) != 0 else self.urls
             urls = iter(url_list)
-            print(url_list.__sizeof__())
             length = len(url_list)
             counter = length
             while True:
@@ -308,8 +297,7 @@ class VenomCrawler:
             else self.__check_split(self.products)
         counter, length = len(urls), len(urls)
         urls = iter(urls)
-        print(threading.enumerate(), threading.current_thread(), threading.activeCount(), threading.active_count(),
-              sep='\n')
+        print(f"Scraping chunk #{self.chunk}")
         while True:
             try:
                 start = perf_counter()
@@ -327,6 +315,9 @@ class VenomCrawler:
                 break
         self.__save(self.data, 'data')
         self.__finish()
+
+    def run(self):
+        pass
 
 
 if __name__ == '__main__':
