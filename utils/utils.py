@@ -40,14 +40,22 @@ def check_files(directory: str, filename, chunksize):
 
 def join_files(directory, filter_word):
     pages = pd.DataFrame()
-    files = [file for file in os.listdir(directory) if filter_word in file and file.endswith('csv')]
+    files = [file for file in os.listdir(directory)
+             if filter_word in file and file.endswith('csv')]
     for file in files:
         file_path = os.path.join(directory, file)
         df = pd.read_csv(file_path, index_col=0)
         pages = pd.concat([pages, df], axis=0, join='outer')
         os.remove(file_path)
     pages = pages.reset_index().drop('index', axis=1)
+    pages.index += 1
     return pages
+
+
+def check_url_prefix(url):
+    if "http://" not in url:
+        return f"http://{url}"
+    return url
 
 
 if __name__ == "__main__":

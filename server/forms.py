@@ -1,6 +1,6 @@
 from marshmallow import Schema, fields, validates_schema, ValidationError
 from marshmallow.validate import Length, Email
-import pycountry.db as countries
+from pycountry import countries
 
 fields.Field.default_error_messages['requires'] = 'Starred (*) fields are required'
 
@@ -21,6 +21,8 @@ class RegistrationForm(Schema):
     def validate_numbers(self, data, **kwargs):
         if data["confirm_password"] != data["password"]:
             raise ValidationError("Password must match Confirm Password")
+        if not countries.get(data["country"]):
+            raise ValidationError("Not a valid country")
 
 
 class LoginForm(Schema):
