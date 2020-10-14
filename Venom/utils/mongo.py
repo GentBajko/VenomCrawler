@@ -8,35 +8,78 @@ users = db["users"]
 crawlers = db["crawlers"]
 
 
-def count_mongo(collection: pymongo.collection.Collection,
-                search: dict = None):
-    if search is None:
-        search = {}
-    return collection.count_documents(search)
+class MongoConnection:
+
+    def __init__(self):
+        client = pymongo.MongoClient(os.environ['VENOM_MONGO'])
+        self.db = client["venom"]
+
+    def get_collection(self, name):
+        self.collection = self.db[name]
 
 
-def insert_mongo(collection: pymongo.collection.Collection,
-                 req: dict = None):
-    user_id = ("_id", count_mongo(collection) + 1)
-    items = [item for item in req.items()]
-    items.insert(0, user_id)
-    post = {k: v for k, v in items}
-    collection.insert_one(post)
+class Users(MongoConnection):
+    def __init__(self):
+        super(Users, self).__init__()
+        self.get_collection('users')
+
+    def update_and_save(self, data, *fields):
+        if self.collection.find(
+                {'username': data['username']}
+        ).count():
+            for field in fields:
+                self.collection.update(
+                    {'username': data['username']},
+                    {'$set': {field: data[field]}})
+
+    def add(self, data):
+        if not self.collection.find(
+                {'username': data['username'],
+                 'crawler': data['crawler']}
+        ).count():
+            self.collection.insert_one(data)
+
+    def remove(self, data, *fields):
+        if 'username' in fields:
+            raise AttributeError(
+                "You cannot delete a user"
+            )
+        for field in fields:
+            self.collection.update(
+                {'username': data['username']},
+                {'$unset': {field: data[field]}}
+            )
 
 
-def delete_mongo(collection: pymongo.collection.Collection,
-                 user_id: int):
-    collection.delete_one({"_id": user_id})
+class Crawlers(MongoConnection):
+    def __init__(self):
+        super(Crawlers, self).__init__()
+        self.get_collection('crawlers')
 
+    def update_and_save(self, data, *fields):
+        if not self.collection.find(
+                {'username': data['username'],
+                 'crawler': data['crawler']}
+        ).count():
+            for field in fields:
+                self.collection.update(
+                    {'username': data['username']},
+                    {'$set': {field: data[field]}})
 
-def replace_mongo(collection: pymongo.collection.Collection,
-                  user_id: int, req: dict):
-    user_id = ("_id", user_id)
-    items = [item for item in req.items()]
-    items.insert(0, user_id)
-    post = {k: v for k, v in items}
-    collection.replace_one({"_id": user_id}, post)
+    def add(self, data):
+        if not self.collection.find(
+                {'username': data['username'],
+                 'crawler': data['crawler']}
+        ).count():
+            self.collection.insert_one(data)
 
-
-if __name__ == '__main__':
-    print([x for x in users.find({})])
+    def remove(self, data, remove_crawler=False, *fields):
+        if remove_crawler:
+            self.collection.remove(
+                {'username': data['username'],
+                 'crawler': data['crawler']}
+            )
+        for field in fields:
+            self.collection.update(
+                {'username': data['username']},
+                {'$unset': {field: data[field]}})
