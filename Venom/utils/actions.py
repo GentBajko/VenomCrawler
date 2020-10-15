@@ -7,7 +7,7 @@ def find_elements(driver, xpath, _from: int = 0, to: int = None):
     return driver.find_elements_by_xpath(xpath)[_from:to]
 
 
-def fine_elements_by_text(driver, text: str, _from: int = 0, to: int = None):
+def find_elements_by_text(driver, text: str, _from: int = 0, to: int = None):
     return driver.find_elements_by_xpath(f"//*[contains(text(), {text})]")[_from:to]
 
 
