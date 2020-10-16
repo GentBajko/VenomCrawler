@@ -24,8 +24,10 @@ import threading
 
 class VenomCrawler:
     def __init__(self, name: str, starting_url: str,
-                 column_names: list, xpaths: list,
-                 next_xpath: str = None, product_xpath: str = None,
+                 column_names: list,
+                 xpaths: list,
+                 next_xpath: str = None,
+                 product_xpath: str = None,
                  url_queries: dict = None,
                  page_query: str = None,
                  page_steps: int = None,
@@ -77,6 +79,7 @@ class VenomCrawler:
     def __driver(self):
         self.options = ChromeOptions()
         self.options.headless = True
+        self.options.add_argument('--ignore-certificate-errors')
         self.options.add_argument('--disable-extensions')
         self.options.add_argument('--profile-directory=Default')
         self.options.add_argument("--incognito")
