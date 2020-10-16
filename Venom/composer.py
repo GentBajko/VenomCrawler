@@ -9,6 +9,7 @@ from time import sleep
 from fake_useragent import UserAgent
 import numpy as np
 import pandas as pd
+import threading
 import undetected_chromedriver as uc
 uc.install()
 from selenium.webdriver import Chrome, ChromeOptions
@@ -17,14 +18,18 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 
-from Venom.utils.utils import get_selectors, concat_keys_values, join_files, check_files, check_url_prefix
-from Venom.utils.actions import find_elements, find_regex, find_elements_by_text, get_useragent
+from Venom.utils.utils import get_selectors, concat_keys_values, join_files,\
+    check_files, check_url_prefix, add_date, get_path
+from Venom.utils.actions import find_regex, get_useragent, save_data
 
 
 class Composer:
-    def __init__(self, name: str, starting_url: str,
-                 column_names: list, xpaths: list,
-                 next_xpath: str = None, product_xpath: str = None,
+    def __init__(self, name: str,
+                 starting_url: str,
+                 column_names: list,
+                 xpaths: list,
+                 next_xpath: str = None,
+                 product_xpath: str = None,
                  url_queries: dict = None,
                  page_query: str = None,
                  page_steps: int = None,
@@ -80,6 +85,8 @@ class Composer:
         self.options.add_argument('--profile-directory=Default')
         self.options.add_argument("--incognito")
         self.options.add_argument("--disable-plugins-discovery")
+        self.options.add_argument('--ignore-certificate-errors')
+        get_useragent(self.options)
         self.driver = Chrome(options=self.options)
         self.driver.delete_all_cookies()
         self.driver.set_window_size(800, 800)
@@ -87,31 +94,13 @@ class Composer:
 
     def save(self, data: list or dict, name: str):
         date = self.start_time.strftime('%Y-%m-%d')
-        if type(data) == list:
-            df = pd.Series(data)
-        else:
-            df = pd.DataFrame(data)
-            columns = ['Date'] + df.columns.to_list()
-            df['Date'] = [date] * len(df)
-            df = df[columns]
-            df.index += 1
-        if 'crawlers' not in os.listdir('Venom'):
-            path = os.path.join('Venom', 'crawlers', 'data', self.name, name)
-        else:
-            path = os.path.join(os.getcwd(), 'data', self.name, name)
-        os.makedirs(path, exist_ok=True)
+        df = add_date(data, date)
+        path = get_path(self.name, name)
+        filename = f"{self.name} {date}.csv"
         if self.chunksize and name not in ['pages', 'products']:
-            df.to_csv(f'{path}/{name} {self.chunk}.csv', encoding='utf-8-sig')
-            if check_files(path, name, self.chunksize):
-                full_data = join_files(path, name)
-                if f"{self.name} {date}.csv" not in os.listdir(path):
-                    full_data.to_csv(f"{path}/{self.name} {date}.csv", encoding='utf-8-sig')
-                else:
-                    count = len([file for file in os.listdir(path)
-                                 if f'{self.name} {date}' in file and file.endswith('.csv')])
-                    full_data.to_csv(f"{path}/{self.name} {date} {count}.csv", encoding='utf-8-sig')
+            save_data(self.name, name, df, self.chunksize, self.chunk, path, date, filename)
         else:
-            df.to_csv(f'data/{self.name}/{name}/{self.name} {date}.csv', encoding='utf-8-sig')
+            df.to_csv(f'data/{self.name}/{name}/{filename}', encoding='utf-8-sig')
 
     def check_split(self, url_list: list):
         if self.chunksize and len(url_list) > self.chunksize:
@@ -169,7 +158,7 @@ class Composer:
             self.driver.find_element_by_xpath(self.last_page_arrow).click()
             sleep(1.5)
 
-    def load_more(self):
+    def click_load_more(self):
         if self.load_more:
             while True:
                 try:
@@ -186,13 +175,45 @@ class Composer:
         seconds = finish % 60
         if check_files(os.path.join(os.getcwd(), 'data', self.name, 'data'), 'data', self.chunksize):
             print(f'\nFinished in {hours} hour(s), {minutes} minute(s) and {seconds} seconds.')
-        else:
-            print(f"\nFinished {self.name}'s chunk #{self.chunk}")
 
     def get_services(self, url):
         if self.product_xpath:
             links = self.driver.find_elements_by_xpath(self.product_xpath)
             products = (source.get_attribute('href') for source in links)
-            for url in products:
+            for link in products:
                 self.pages.append(url)
-                self.products.append(url)
+                self.products.append(link)
+
+    def find_elements(self, xpath, _from: int = 0, to: int = None):
+        return self.driver.find_elements_by_xpath(xpath)[_from:to]
+
+    def find_by_text(self, text: str, _from: int = 0, to: int = None):
+        return self.driver.find_elements_by_xpath(f"//*[contains(text(), {text})]")[_from:to]
+
+    def scrape(self):
+        predefined = self.predefined_url_list
+        urls = self.check_split(predefined) if self.predefined_url_list \
+            else self.check_split(self.products)
+        while True:
+            try:
+                self.driver.get(next(urls))
+                self.click_load_more()
+                self.tryexcept()
+            except StopIteration:
+                self.driver.quit()
+                break
+        self.save(self.data, 'data')
+
+    def __run(self):
+        pass
+
+    def start_threads(self):
+        jobs = []
+        for _ in range(self.chunksize):
+            thread = threading.Thread(target=self.__run())
+            jobs.append(thread)
+        for job in jobs:
+            job.start()
+        for job in jobs:
+            job.join()
+        self.finish()

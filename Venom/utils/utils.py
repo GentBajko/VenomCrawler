@@ -57,5 +57,27 @@ def check_url_prefix(url):
     return url
 
 
+def add_date(data, date):
+    if type(data) == list:
+        df = pd.Series(data)
+    else:
+        df = pd.DataFrame(data)
+        columns = ['Date'] + df.columns.to_list()
+        df['Date'] = [date] * len(df)
+        df = df[columns]
+    return df
+
+
+def get_path(crawler_name, df_name):
+    if 'crawlers' not in os.listdir('Venom'):
+        path = os.path.join('Venom', 'crawlers',
+                            'data', crawler_name, df_name)
+    else:
+        path = os.path.join(os.getcwd(), 'data',
+                            crawler_name, df_name)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
 if __name__ == "__main__":
     pass
