@@ -7,7 +7,7 @@ services:
       - "4444:4444"
     volumes:
       - "$PWD:/etc/selenoid/" # assumed current dir contains browsers.json
-      - "/var/run/docker.sock:/var/run/docker.sock"
+      - "/var/run/docker.sock/:/var/run/docker.sock"
   selenoid-ui:
     image: "aerokube/selenoid-ui"
     network_mode: bridge
