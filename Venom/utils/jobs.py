@@ -1,20 +1,11 @@
 from pathos.multiprocessing import Pool
 
-from Venom.Venom import VenomCrawler
+from Venom.Venom import Paginate
+from threading import Thread
 
 
 def initiateVenom(*args):
-    venom = VenomCrawler(*args)
-    if venom.next_xpath:
-        venom.pagination().get_services_urls().scrape()
-    elif venom.search_xpath:
-        venom.search().get_services_urls().scrape()
-    elif venom.page_query:
-        venom.calculate_urls().get_services_urls().scrape()
-    elif venom.product_xpath:
-        venom.get_services_urls().scrape()
-    else:
-        venom.scrape()
+    Paginate(*args).run_threads()
 
 
 def Venom(name: str, starting_url: str, column_names: list, xpaths: list, next_xpath: str = None,
@@ -24,9 +15,8 @@ def Venom(name: str, starting_url: str, column_names: list, xpaths: list, next_x
           error_xpaths: list = None, chunksize: int = None):
     if not chunksize:
         chunksize = 1
-    map_lists = [(name, starting_url, column_names, xpaths, next_xpath, product_xpath, url_queries, page_query,
-                  page_steps, last_page_xpath, last_page_arrow, search_xpath, search_terms, load_more, regex,
-                  predefined_url_list, error_xpaths, chunksize, i) for i in range(chunksize)]
+    map_lists = [(name, starting_url, column_names, xpaths,
+                  next_xpath, product_xpath, chunksize, i) for i in range(chunksize)]
     pool = Pool(chunksize)
     pool.starmap(initiateVenom, map_lists)
 

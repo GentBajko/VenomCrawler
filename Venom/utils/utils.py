@@ -69,8 +69,8 @@ def add_date(data, date):
 
 
 def get_path(crawler_name, df_name):
-    if 'crawlers' not in os.listdir('Venom'):
-        path = os.path.join('Venom', 'crawlers',
+    if 'crawlers' not in os.listdir(os.getcwd()):
+        path = os.path.join(os.getcwd(), 'crawlers',
                             'data', crawler_name, df_name)
     else:
         path = os.path.join(os.getcwd(), 'data',

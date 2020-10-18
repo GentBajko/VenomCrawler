@@ -18,9 +18,10 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 
-from Venom.utils.utils import get_selectors, concat_keys_values, join_files,\
+from Venom.utils.utils import get_selectors, concat_keys_values,\
     check_files, check_url_prefix, add_date, get_path
 from Venom.utils.actions import find_regex, get_useragent, save_data
+from threading import Thread
 
 
 class Composer:
@@ -75,13 +76,14 @@ class Composer:
         self.start_driver()
         self.start_time = datetime.now()
         self.useragent = UserAgent().random
-        if self.chunksize - 1 == chunk:
+        if self.chunksize and self.chunksize - 1 == chunk:
             print(f"Initialized: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
 
     def start_driver(self):
         self.options = ChromeOptions()
         self.options.headless = True
         self.options.add_argument('--disable-extensions')
+        self.options.add_argument('--disable-gpu')
         self.options.add_argument('--profile-directory=Default')
         self.options.add_argument("--incognito")
         self.options.add_argument("--disable-plugins-discovery")
@@ -98,13 +100,14 @@ class Composer:
         path = get_path(self.name, name)
         filename = f"{self.name} {date}.csv"
         if self.chunksize and name not in ['pages', 'products']:
-            save_data(self.name, name, df, self.chunksize, self.chunk, path, date, filename)
+            save_data(self.name, name, df, filename, self.chunksize, self.chunk, path, date)
         else:
             df.to_csv(f'data/{self.name}/{name}/{filename}', encoding='utf-8-sig')
 
     def check_split(self, url_list: list):
-        if self.chunksize and len(url_list) > self.chunksize:
-            return np.array_split(url_list, self.chunksize)[self.chunk]
+        if type(url_list) != 'iterator':
+            if self.chunksize and len(url_list) > self.chunksize:
+                return iter(np.array_split(url_list, self.chunksize)[self.chunk])
         return iter(url_list)
 
     def error(self):
@@ -173,8 +176,7 @@ class Composer:
         hours = (finish // 60) // 60
         minutes = (finish // 60) % 60
         seconds = finish % 60
-        if check_files(os.path.join(os.getcwd(), 'data', self.name, 'data'), 'data', self.chunksize):
-            print(f'\nFinished in {hours} hour(s), {minutes} minute(s) and {seconds} seconds.')
+        print(f'\nFinished in {hours} hour(s), {minutes} minute(s) and {seconds} seconds.')
 
     def get_services(self, url):
         if self.product_xpath:
@@ -200,20 +202,11 @@ class Composer:
                 self.click_load_more()
                 self.tryexcept()
             except StopIteration:
-                self.driver.quit()
                 break
         self.save(self.data, 'data')
 
-    def __run(self):
+    def run(self):
         pass
 
-    def start_threads(self):
-        jobs = []
-        for _ in range(self.chunksize):
-            thread = threading.Thread(target=self.__run())
-            jobs.append(thread)
-        for job in jobs:
-            job.start()
-        for job in jobs:
-            job.join()
-        self.finish()
+    def run_threads(self):
+        pass

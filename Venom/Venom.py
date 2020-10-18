@@ -1,5 +1,5 @@
-import threading
-from selenium.common.exceptions import NoSuchElementException,\
+from threading import Thread
+from selenium.common.exceptions import NoSuchElementException, \
     UnexpectedAlertPresentException
 from .composer import Composer
 
@@ -9,24 +9,27 @@ class Paginate(Composer):
                  column_names: list, xpaths: list,
                  next_xpath: str = None, product_xpath: str = None,
                  chunksize: int = None, chunk: int = None):
-        super().__init__(name, starting_url, column_names, xpaths,
-                         next_xpath, product_xpath, chunksize, chunk)
+        super(Paginate, self).__init__(name=name, starting_url=starting_url,
+                                       column_names=column_names,
+                                       xpaths=xpaths, next_xpath=next_xpath,
+                                       product_xpath=product_xpath,
+                                       chunksize=chunksize, chunk=chunk)
 
     def pagination(self):
         self.urls = iter(self.urls)
+        counter = 1
         while True:
             try:
                 url = next(self.urls)
                 self.driver.get(url)
                 if not self.error():
+                    counter += 1
                     while True:
                         self.source.append(self.driver.current_url)
                         if self.product_xpath:
                             self.get_services(self.driver.current_url)
                         try:
-                            self.driver.find_element_by_xpath(
-                                self.next_xpath
-                            ).click()
+                            self.driver.find_element_by_xpath(self.next_xpath).click()
                         except (NoSuchElementException,
                                 UnexpectedAlertPresentException):
                             break
@@ -34,10 +37,32 @@ class Paginate(Composer):
                 break
         self.save(self.source, 'pages')
         self.save(self.products, 'products')
+        self.products = self.products * 76
         return self
 
-    def __run(self):
+    def run(self):
         self.pagination().scrape()
+
+    def run_threads(self):
+        jobs = []
+        for i in range(self.chunksize):
+            self.chunksize = i
+            thread = Thread(target=self.pagination)
+            jobs.append(thread)
+        for job in jobs:
+            job.start()
+        for job in jobs:
+            job.join()
+        jobs = []
+        for _ in range(self.chunksize):
+            thread = Thread(target=self.scrape)
+            jobs.append(thread)
+        for job in jobs:
+            job.start()
+        for job in jobs:
+            job.join()
+
+        self.driver.close()
 
 
 class Search(Composer):
