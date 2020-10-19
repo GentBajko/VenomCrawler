@@ -22,6 +22,7 @@ from Venom.utils.utils import get_selectors, concat_keys_values,\
     check_files, check_url_prefix, add_date, get_path
 from Venom.utils.actions import find_regex, get_useragent, save_data
 from threading import Thread
+from requests_html import HTML
 
 
 class Composer:
@@ -73,6 +74,7 @@ class Composer:
         self.search_terms = search_terms
         self.load_more = load_more
         self.predefined_url_list = predefined_url_list
+        self.source_code = []
         self.start_driver()
         self.start_time = datetime.now()
         self.useragent = UserAgent().random
@@ -119,21 +121,36 @@ class Composer:
                 except (NoSuchElementException, UnexpectedAlertPresentException):
                     continue
 
+    def parse(self):
+        if self.error():
+            return
+        for html in self.get_source():
+            for key, selector in self.selectors.items():
+                s = HTML(html=html)
+                self.driver.get(product)
+                self.data[key].append(s.xpath(f'{selector}/text()', first=True))
+
+    def get_source(self):
+        self.products = self.check_split(self.products)
+        for url in self.products:
+            self.driver.get(url)
+            yield self.driver.page_source
+
     def tryexcept(self):
         if self.error():
             return
-        for name, xpath in self.selectors.items():
+        for name, selector in self.selectors.items():
             if self.regex and name in self.regex.keys():
                 pattern = fr"{self.regex[name]}"
                 try:
                     element = find_regex(pattern,
-                                         self.driver.find_element_by_xpath(xpath).text)
+                                         self.driver.find_element_by_xpath(selector).text)
                     self.data[name].append(element)
                 except (NoSuchElementException, UnexpectedAlertPresentException):
                     self.data[name].append(np.NaN)
             else:
                 try:
-                    element = self.driver.find_element_by_xpath(xpath).text
+                    element = self.driver.find_element_by_xpath(selector).text
                     self.data[name].append(element)
                 except (NoSuchElementException, UnexpectedAlertPresentException):
                     self.data[name].append(np.NaN)
