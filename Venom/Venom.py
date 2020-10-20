@@ -12,7 +12,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 
-from Venom.utils.utils import get_selectors, concat_keys_values,\
+from Venom.utils.utils import get_selectors, concat_keys_values, \
     check_url_prefix, add_date, get_path
 from Venom.utils.actions import find_regex, get_useragent, save_data
 from threading import Thread
@@ -46,7 +46,8 @@ class Venom:
             url_queries = (''.join(chain.from_iterable(e)) for e in
                            product(*map(concat_keys_values, url_queries.items())))
             self.urls = (''.join(url).replace(' ', '%20')
-                         for url in product([starting_url], url_queries))
+                         for url in product([starting_url], url_queries)
+                         )
         else:
             self.urls = [starting_url]
         self.selectors = get_selectors(column_names, xpaths)
@@ -74,6 +75,20 @@ class Venom:
         self.useragent = UserAgent().random
         if self.chunksize and self.chunksize - 1 == chunk:
             print(f"Initialized: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+
+    def catch_errors(self, pre_try: dict = None, try_funcs: dict = None, action=None):
+        while True:
+            for func, arg in pre_try.items():
+                func(arg)
+            try:
+                for func, arg in try_funcs.items():
+                    if not action:
+                        func(arg)
+                    else:
+                        func(arg).action()
+            except (NoSuchElementException,
+                    UnexpectedAlertPresentException):
+                break
 
     def start_driver(self):
         uc.install()
@@ -103,9 +118,9 @@ class Venom:
             df.to_csv(f'data/{self.name}/{name}/{filename}', encoding='utf-8-sig')
 
     def check_split(self, url_list: list):
-        if type(url_list) != 'iterator':
-            if self.chunksize and len(url_list) > self.chunksize:
-                return iter(np.array_split(url_list, self.chunksize)[self.chunk])
+        if (type(url_list) != 'iterator' and self.chunksize
+                and len(url_list) > self.chunksize):
+            return iter(np.array_split(url_list, self.chunksize)[self.chunk])
         return iter(url_list)
 
     def error(self):
@@ -127,7 +142,7 @@ class Venom:
                 self.data[key].append(s.xpath(f'{selector}/text()', first=True))
 
     def get_source(self):
-        self.products = self.check_split(self.products)
+        self.products = self.check_split(list(self.products))
         for url in self.products:
             self.driver.get(url)
             yield self.driver.page_source
@@ -136,7 +151,7 @@ class Venom:
         if self.error():
             return
         for name, selector in self.selectors.items():
-            if self.regex and name in self.regex.keys():
+            if name in self.regex.keys():
                 pattern = fr"{self.regex[name]}"
                 try:
                     element = find_regex(pattern,
@@ -151,9 +166,10 @@ class Venom:
                 except (NoSuchElementException, UnexpectedAlertPresentException):
                     self.data[name].append(np.NaN)
 
-    def scroll(self, timeout: int = None):
+    def scroll(self, times: int = None, timeout: int = None):
         scroll_pause_time = timeout
         last_height = self.driver.execute_script("return document.body.scrollHeight")
+        counter = 0
         while True:
             self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
             sleep(scroll_pause_time)
@@ -161,6 +177,9 @@ class Venom:
             if new_height == last_height:
                 break
             last_height = new_height
+            counter += 1
+            if times == counter:
+                break
 
     def wait_to_load(self, time, xpath=None):
         if xpath:
@@ -174,22 +193,20 @@ class Venom:
             self.driver.find_element_by_xpath(self.last_page_arrow).click()
             sleep(1.5)
 
-    def click_load_more(self):
-        if self.load_more:
-            while True:
-                try:
-                    load = self.driver.find_element_by_xpath(self.load_more)
-                    load.click()
-                    self.wait_to_load(self.load_more, 10)
-                except NoSuchElementException:
+    def click_load_more(self, times: int = None):
+        if not self.load_more:
+            return
+        counter = 1
+        while True:
+            try:
+                load = self.driver.find_element_by_xpath(self.load_more)
+                load.click()
+                self.wait_to_load(self.load_more, 10)
+                counter += 1
+                if times == counter:
                     break
-
-    def finish(self):
-        finish = perf_counter() - self.start
-        hours = (finish // 60) // 60
-        minutes = (finish // 60) % 60
-        seconds = finish % 60
-        print(f'\nFinished in {hours} hour(s), {minutes} minute(s) and {seconds} seconds.')
+            except NoSuchElementException:
+                break
 
     def get_services(self, url):
         if self.product_xpath:
@@ -214,15 +231,13 @@ class Venom:
                 self.driver.get(url)
                 if not self.error():
                     counter += 1
-                    while True:
-                        self.source.append(self.driver.current_url)
-                        if self.product_xpath:
-                            self.get_services(self.driver.current_url)
-                        try:
-                            self.driver.find_element_by_xpath(self.next_xpath).click()
-                        except (NoSuchElementException,
-                                UnexpectedAlertPresentException):
-                            break
+                    self.catch_errors(pre_try={
+                        self.source.append: self.driver.current_url,
+                        self.get_services: self.driver.current_url
+                    },
+                        try_funcs={
+                            self.driver.find_element_by_xpath: self.next_xpath
+                        })
             except StopIteration:
                 break
         self.save(self.source, 'pages')
@@ -232,7 +247,7 @@ class Venom:
 
     def search(self):
         urls = self.urls
-        self.search_terms = self.check_split(self.search_terms)
+        self.search_terms = self.check_split(list(self.search_terms))
         while True:
             try:
                 url = next(urls)

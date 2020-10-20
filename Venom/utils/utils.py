@@ -9,8 +9,8 @@ def timer(func):
     def wrapper(*args, **kwargs):
         start = perf_counter()
         result = func(*args, **kwargs)
-        finish = perf_counter()
-        print(result, f'{(finish - start):0.12f}')
+        finish_time = perf_counter()
+        print(result, f'{(finish_time - start):0.12f}')
         return result
 
     return wrapper
@@ -88,6 +88,14 @@ def add_row(path, cols: list = None, *args):
         with open(path, 'w') as csv:
             csv.write(",".join([str(x) for x in cols]))
             csv.write(line)
+
+
+def finish(start_time):
+    finish_time = perf_counter() - start_time
+    hours = (finish_time // 60) // 60
+    minutes = (finish_time // 60) % 60
+    seconds = finish_time % 60
+    return dict(hours=hours, minutes=minutes, seconds=seconds)
 
 
 if __name__ == "__main__":
