@@ -15,7 +15,6 @@ from selenium.webdriver.support import expected_conditions as ec
 from Venom.utils.utils import get_selectors, concat_keys_values, \
     check_url_prefix, add_date, get_path
 from Venom.utils.actions import find_regex, get_useragent, save_data
-from threading import Thread
 from requests_html import HTML
 
 
