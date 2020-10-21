@@ -4,6 +4,7 @@ from django import forms
 
 
 class RegistrationForm(forms.Form):
+    id = forms.IntegerField()
     name = forms.CharField(required=True, max_length=20)
     middlename = forms.CharField(max_length=20)
     lastname = forms.CharField(required=True, max_length=20)
