@@ -1,0 +1,28 @@
+{
+  "files": {
+    "main.css": "../components/static/css/main.538dbb0b.chunk.css",
+    "main.js": "../components/static/js/main.bc14c306.chunk.js",
+    "main.js.map": "../components/static/js/main.bc14c306.chunk.js.map",
+    "runtime-main.js": "../components/static/js/runtime-main.f4a85f08.js",
+    "runtime-main.js.map": "../components/static/js/runtime-main.f4a85f08.js.map",
+    "static/css/2.11829350.chunk.css": "../components/static/css/2.11829350.chunk.css",
+    "static/js/2.152046b6.chunk.js": "../components/static/js/2.152046b6.chunk.js",
+    "static/js/2.152046b6.chunk.js.map": "../components/static/js/2.152046b6.chunk.js.map",
+    "index.html": "../components/index.html",
+    "precache-manifest.f77c211109d7f206e392a0256b3f9c78.js": "../components/precache-manifest.f77c211109d7f206e392a0256b3f9c78.js",
+    "service-worker.js": "../components/service-worker.js",
+    "static/css/2.11829350.chunk.css.map": "../components/static/css/2.11829350.chunk.css.map",
+    "static/css/main.538dbb0b.chunk.css.map": "../components/static/css/main.538dbb0b.chunk.css.map",
+    "static/js/2.152046b6.chunk.js.LICENSE.txt": "../components/static/js/2.152046b6.chunk.js.LICENSE.txt",
+    "static/media/CrossIcon.svg": "../components/static/media/CrossIcon.cd971c7b.svg",
+    "static/media/CrossIconHover.svg": "../components/static/media/CrossIconHover.7a969f28.svg",
+    "static/media/logo.svg": "../components/static/media/logo.5d5d9eef.svg"
+  },
+  "entrypoints": [
+    "static/js/runtime-main.f4a85f08.js",
+    "static/css/2.11829350.chunk.css",
+    "static/js/2.152046b6.chunk.js",
+    "static/css/main.538dbb0b.chunk.css",
+    "static/js/main.bc14c306.chunk.js"
+  ]
+}
