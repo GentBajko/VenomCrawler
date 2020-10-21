@@ -2,7 +2,7 @@ from django.contrib.auth.forms import forms
 from django.contrib.postgres.forms import SimpleArrayField
 from django.contrib.auth.models import models
 
-# TODO: Create postgres db
+
 class Crawler(models.Model):
     username = models.CharField(max_length=50)
     creation_date = models.DateTimeField()
