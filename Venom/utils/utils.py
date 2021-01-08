@@ -80,13 +80,13 @@ def get_path(crawler_name, df_name):
 
 
 def add_row(path, cols: list = None, *args):
-    line = ",".join([str(x) for x in args])
+    line = ",".join(str(x) for x in args)
     if os.path.isfile(path):
         with open(path, 'a') as csv:
             csv.write(line)
     else:
         with open(path, 'w') as csv:
-            csv.write(",".join([str(x) for x in cols]))
+            csv.write(",".join(str(x) for x in cols))
             csv.write(line)
 
 

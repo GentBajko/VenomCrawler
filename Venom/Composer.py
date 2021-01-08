@@ -7,15 +7,17 @@ from fake_useragent import UserAgent
 import numpy as np
 import undetected_chromedriver as uc
 
-from selenium.common.exceptions import NoSuchElementException, UnexpectedAlertPresentException
+from selenium.common.exceptions import NoSuchElementException,\
+    UnexpectedAlertPresentException, StaleElementReferenceException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as ec
 
 from Venom.utils.utils import get_selectors, concat_keys_values, \
     check_url_prefix, add_date, get_path
-from Venom.utils.actions import find_regex, get_useragent, save_data
+from Venom.utils.actions import find_regex, get_useragent, save_data, convert_single_to_list
 from requests_html import HTML
+import os
 
 
 class Composer:
@@ -79,7 +81,7 @@ class Composer:
         uc.install()
         from selenium.webdriver import Chrome, ChromeOptions
         self.options = ChromeOptions()
-        self.options.headless = True
+        # self.options.headless = True
         self.options.add_argument('--disable-extensions')
         self.options.add_argument('--disable-gpu')
         self.options.add_argument('--profile-directory=Default')
@@ -89,8 +91,8 @@ class Composer:
         get_useragent(self.options)
         self.driver = Chrome(options=self.options)
         self.driver.delete_all_cookies()
-        self.driver.set_window_size(800, 800)
-        self.driver.set_window_position(0, 0)
+        # self.driver.set_window_size(800, 800)
+        # self.driver.set_window_position(0, 0)
 
     def save(self, data: list or dict, name: str):
         date = self.start_time.strftime('%Y-%m-%d')
@@ -100,6 +102,7 @@ class Composer:
         if self.chunksize and name not in ['pages', 'products']:
             save_data(self.name, name, df, filename, self.chunksize, self.chunk, path, date)
         else:
+            os.makedirs(f'data/{self.name}/{name}', exist_ok=True)
             df.to_csv(f'data/{self.name}/{name}/{filename}', encoding='utf-8-sig')
 
     def check_split(self, url_list: list):
@@ -132,24 +135,32 @@ class Composer:
             self.driver.get(url)
             yield self.driver.page_source
 
-    def tryexcept(self):
+    def te_single(self):
         if self.error():
             return
         for name, selector in self.selectors.items():
-            if name in self.regex.keys():
-                pattern = fr"{self.regex[name]}"
-                try:
-                    element = find_regex(pattern,
-                                         self.driver.find_element_by_xpath(selector).text)
+            try:
+                element = self.driver.find_element_by_xpath(selector).text
+                if name in self.regex.keys():
+                    pattern = fr"{self.regex[name]}"
+                    element = find_regex(pattern, element)
+                self.data[name].append(element)
+            except (NoSuchElementException, UnexpectedAlertPresentException):
+                self.data[name].append(np.NaN)
+
+    def te_multi(self):
+        if self.error():
+            return
+        for name, selector in self.selectors.items():
+            try:
+                elements = [el.text for el in self.driver.find_elements_by_xpath(selector)]
+                for element in elements:
+                    if name in self.regex.keys():
+                        pattern = fr"{self.regex[name]}"
+                        element = find_regex(pattern, element)
                     self.data[name].append(element)
-                except (NoSuchElementException, UnexpectedAlertPresentException):
-                    self.data[name].append(np.NaN)
-            else:
-                try:
-                    element = self.driver.find_element_by_xpath(selector).text
-                    self.data[name].append(element)
-                except (NoSuchElementException, UnexpectedAlertPresentException):
-                    self.data[name].append(np.NaN)
+            except (NoSuchElementException, UnexpectedAlertPresentException):
+                pass
 
     def scroll(self, times: int = None, timeout: int = None):
         scroll_pause_time = timeout
@@ -184,9 +195,10 @@ class Composer:
         while True:
             try:
                 load = self.driver.find_element_by_xpath(self.load_more)
+                # self.wait_to_load(self.load_more, 10)
+                self.scroll(3, 1)
                 load.click()
-                self.wait_to_load(self.load_more, 10)
-            except NoSuchElementException:
+            except (NoSuchElementException, StaleElementReferenceException):
                 break
 
     def get_services(self, url):
@@ -202,3 +214,10 @@ class Composer:
 
     def find_by_text(self, text: str, _from: int = 0, to: int = None):
         return self.driver.find_elements_by_xpath(f"//*[contains(text(), {text})]")[_from:to]
+
+    def login(self, login_button, user, password, user_field, pass_field, submit):
+        self.driver.find_element_by_xpath(login_button).click()
+        self.driver.find_element_by_xpath(user_field).send_keys(user)
+        self.driver.find_element_by_xpath(pass_field).send_keys(password)
+        self.driver.find_element_by_xpath(submit).click()
+        sleep(5)

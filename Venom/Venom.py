@@ -100,15 +100,19 @@ class Venom(Composer):
                 break
         return self
 
-    def scrape(self):
+    def scrape(self, multi=False):
         predefined = self.predefined_url_list
         urls = self.check_split(predefined) if predefined \
             else self.check_split(self.products)
         while True:
             try:
                 self.driver.get(next(urls))
+                print(self.driver.current_url)
                 self.click_load_more()
-                self.tryexcept()
+                if not multi:
+                    self.te_single()
+                else:
+                    self.te_multi()
             except StopIteration:
                 break
         self.save(self.data, 'data')
@@ -121,26 +125,26 @@ class Venom(Composer):
         elif self.page_query:
             self.calculate_urls().scrape()
         elif self.predefined_url_list:
-            self.scrape()
+            self.scrape(multi=True)
         self.driver.close()
 
     def run_threads(self):
         jobs = []
         for i in range(self.chunksize):
             self.chunksize = i
-            thread = Thread(target=self.pagination)
+            thread = Thread(target=self.run())
             jobs.append(thread)
         for job in jobs:
             job.start()
         for job in jobs:
             job.join()
-        jobs = []
-        for _ in range(self.chunksize):
-            thread = Thread(target=self.scrape)
-            jobs.append(thread)
-        for job in jobs:
-            job.start()
-        for job in jobs:
-            job.join()
+        # jobs = []
+        # for _ in range(self.chunksize):
+        #     thread = Thread(target=self.scrape)
+        #     jobs.append(thread)
+        # for job in jobs:
+        #     job.start()
+        # for job in jobs:
+        #     job.join()
 
         self.driver.close()
